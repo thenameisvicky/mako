@@ -16,7 +16,7 @@ const (
 	colorGreen  = "\033[38;5;84m"
 	colorRed    = "\033[38;5;203m"
 	colorBold   = "\033[1m"
-	symbolError = "✗"
+	symbolError = ""
 )
 
 
@@ -44,7 +44,6 @@ func LaunchClaude() error {
 		return fmt.Errorf("claude CLI command not found on PATH. Please install Claude Code first")
 	}
 
-	// Enter alternate screen buffer to isolate Claude Code UI, home cursor, and clear alternate buffer
 	fmt.Print("\033[?1049h\033[H\033[2J")
 
 	cmd := exec.Command(claudePath)
@@ -52,9 +51,18 @@ func LaunchClaude() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	localProxy := "http://" + proxy.GetLocalAddr()
+	cmd.Env = append(os.Environ(),
+		"HTTP_PROXY="+localProxy,
+		"HTTPS_PROXY="+localProxy,
+		"http_proxy="+localProxy,
+		"https_proxy="+localProxy,
+		"ANTHROPIC_BASE_URL="+localProxy,
+		"ANTHROPIC_API_URL="+localProxy,
+	)
+
 	runErr := cmd.Run()
 
-	// Exit alternate screen buffer to restore the main screen buffer
 	fmt.Print("\033[?1049l")
 
 	if proxyStartedByAgent {

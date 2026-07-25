@@ -35,10 +35,10 @@ const (
 )
 
 const (
-	symbolInfo    = "●"
-	symbolSuccess = "⏺"
-	symbolError   = "⏺"
-	symbolBullet  = "⎿"
+	symbolInfo    = ""
+	symbolSuccess = ""
+	symbolError   = ""
+	symbolBullet  = ""
 )
 
 // spinnerFrames mirrors the pulsing star Claude Code shows while it works.
