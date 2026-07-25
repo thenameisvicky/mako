@@ -1,12 +1,9 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
-
-	"github.com/thenameisvicky/tokenly-cli/internal/proxy"
 )
 
 const (
@@ -21,26 +18,8 @@ const (
 
 
 func LaunchClaude() error {
-	status, err := proxy.Status()
-	if err != nil {
-		return fmt.Errorf("failed to check proxy status: %w", err)
-	}
-
-	proxyStartedByAgent := false
-	if status.State != proxy.StateConnected {
-		fmt.Printf("  %sStarting Tokenly proxy for Claude connection…%s\n", colorDim, colorReset)
-		if err := proxy.Start(context.Background()); err != nil {
-			return fmt.Errorf("failed to start proxy: %w", err)
-		}
-		proxyStartedByAgent = true
-		fmt.Printf("  %sProxy is running.%s\n", colorDim, colorReset)
-	}
-
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
-		if proxyStartedByAgent {
-			_ = proxy.Stop()
-		}
 		return fmt.Errorf("claude CLI command not found on PATH. Please install Claude Code first")
 	}
 
@@ -51,28 +30,9 @@ func LaunchClaude() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	localProxy := "http://" + proxy.GetLocalAddr()
-	cmd.Env = append(os.Environ(),
-		"HTTP_PROXY="+localProxy,
-		"HTTPS_PROXY="+localProxy,
-		"http_proxy="+localProxy,
-		"https_proxy="+localProxy,
-		"ANTHROPIC_BASE_URL="+localProxy,
-		"ANTHROPIC_API_URL="+localProxy,
-	)
-
 	runErr := cmd.Run()
 
 	fmt.Print("\033[?1049l")
-
-	if proxyStartedByAgent {
-		fmt.Printf("  %sStopping Tokenly proxy…%s\n", colorDim, colorReset)
-		if err := proxy.Stop(); err != nil {
-			fmt.Printf("  %sError stopping proxy: %v%s\n", colorRed, err, colorReset)
-		} else {
-			fmt.Printf("  %sProxy stopped.%s\n", colorDim, colorReset)
-		}
-	}
 
 	fmt.Printf("  %sReturned from Claude Code shell.%s\n\n", colorDim, colorReset)
 
