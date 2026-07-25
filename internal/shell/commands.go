@@ -3,7 +3,6 @@ package shell
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/thenameisvicky/tokenly-cli/internal/agent"
@@ -17,19 +16,19 @@ func InitRouter() *Router {
 
 	r.RegisterCommand("/init", "Configure credentials securely", CommandHandlerFunc(func(args []string) error {
 		if err := auth.Init(); err != nil {
-			fmt.Printf("\n%s✖%s %sError:%s %v\n\n", colorRed, colorReset, colorBold, colorReset, err)
+			fmt.Printf("\n%s%s %sError: %v%s\n\n", colorBold, symbolError, colorRed, err, colorReset)
 			return err
 		}
-		fmt.Printf("\n%s✔%s Credentials saved to system keychain.\n\n", colorGreen, colorReset)
+		fmt.Printf("\n%s%s %sCredentials saved to system keychain.%s\n\n", colorBold, symbolSuccess, colorGreen, colorReset)
 		return nil
 	}))
 
 	r.RegisterCommand("/logout", "Clear stored credentials", CommandHandlerFunc(func(args []string) error {
 		if err := auth.Logout(); err != nil {
-			fmt.Printf("\n%s✖%s %sError:%s %v\n\n", colorRed, colorReset, colorBold, colorReset, err)
+			fmt.Printf("\n%s%s %sError: %v%s\n\n", colorBold, symbolError, colorRed, err, colorReset)
 			return err
 		}
-		fmt.Printf("\n%s✔%s Logged out successfully.\n\n", colorGreen, colorReset)
+		fmt.Printf("\n%s%s %sLogged out successfully.%s\n\n", colorBold, symbolSuccess, colorGreen, colorReset)
 		return nil
 	}))
 
@@ -41,24 +40,22 @@ func InitRouter() *Router {
 	}))
 
 	r.RegisterCommand("/connect", "Establish connection", CommandHandlerFunc(func(args []string) error {
-		fmt.Println("\nConnecting to Tokenly proxy...")
+		fmt.Printf("\n%s Establishing connection to Tokenly proxy...\n", symbolInfo)
 		if err := proxy.Start(context.Background()); err != nil {
-			fmt.Printf("✖ Error starting proxy: %v\n\n", err)
+			fmt.Printf("%s%s %sError starting proxy: %v%s\n\n", colorBold, symbolError, colorRed, err, colorReset)
 			return err
 		}
-		fmt.Println("✔ Connected to proxy successfully.")
-		fmt.Println()
+		fmt.Printf("%s%s %sConnected to proxy successfully.%s\n\n", colorBold, symbolSuccess, colorGreen, colorReset)
 		return nil
 	}))
 
 	r.RegisterCommand("/disconnect", "Disconnect from service", CommandHandlerFunc(func(args []string) error {
-		fmt.Println("\nDisconnecting from Tokenly proxy...")
+		fmt.Printf("\n%s Disconnecting from Tokenly proxy...\n", symbolInfo)
 		if err := proxy.Stop(); err != nil {
-			fmt.Printf("✖ Error stopping proxy: %v\n\n", err)
+			fmt.Printf("%s%s %sError stopping proxy: %v%s\n\n", colorBold, symbolError, colorRed, err, colorReset)
 			return err
 		}
-		fmt.Println("✔ Disconnected from proxy.")
-		fmt.Println()
+		fmt.Printf("%s%s %sDisconnected from proxy.%s\n\n", colorBold, symbolSuccess, colorGreen, colorReset)
 		return nil
 	}))
 
@@ -79,80 +76,58 @@ type helpHandler struct {
 
 func (h *helpHandler) Execute(args []string) error {
 	fmt.Println()
-	fmt.Printf("%s┌────────────────────────────────────────────────────────────┐%s\n", colorBlue, colorReset)
-	fmt.Printf("%s│%s  %sAvailable Commands%s                                        %s│%s\n", colorBlue, colorReset, colorBold, colorReset, colorBlue, colorReset)
-	fmt.Printf("%s├────────────────────────────────────────────────────────────┤%s\n", colorBlue, colorReset)
+	fmt.Printf("%s%s  Tokenly Commands:%s\n", colorBold, colorGreen, colorReset)
+	fmt.Println()
 
 	for _, cmd := range h.router.Commands() {
-		leftText := fmt.Sprintf("  %-12s", cmd.Name)
-		descText := cmd.Description
-		totalTextLen := len(leftText) + len(descText)
-		padding := 60 - totalTextLen
-		if padding < 0 {
-			padding = 0
-		}
-
-		fmt.Printf("%s│%s%s%s%s%s%s│%s\n",
-			colorBlue, colorReset,
-			leftText,
-			colorDim, descText,
-			colorReset+strings.Repeat(" ", padding),
-			colorBlue, colorReset,
-		)
+		fmt.Printf("    %s%-15s%s  %s%s%s\n", colorBold+colorGreen, cmd.Name, colorReset, colorDim, cmd.Description, colorReset)
 	}
 
-	fmt.Printf("%s└────────────────────────────────────────────────────────────┘%s\n", colorBlue, colorReset)
+	fmt.Println()
+	fmt.Printf("  %sUse Tab to autocomplete commands.%s\n", colorDim, colorReset)
 	fmt.Println()
 	return nil
 }
 
 func handleStatus() {
 	fmt.Println()
-	fmt.Printf("%s┌────────────────────────────────────────────────────────────┐%s\n", colorBlue, colorReset)
-	fmt.Printf("%s│%s  %sSystem Status%s                                             %s│%s\n", colorBlue, colorReset, colorBold, colorReset, colorBlue, colorReset)
-	fmt.Printf("%s├────────────────────────────────────────────────────────────┤%s\n", colorBlue, colorReset)
+	fmt.Printf("%s%s  System Status:%s\n", colorBold, colorGreen, colorReset)
+	fmt.Println()
 
-	var authStatus string
 	if auth.HasCredentials() {
-		authStatus = "Connected (credentials loaded)"
+		fmt.Printf("   %s●%s  %sKeychain:%s      Connected (credentials loaded)\n", colorGreen, colorReset, colorBold, colorReset)
 	} else {
-		authStatus = "Disconnected (no credentials)"
+		fmt.Printf("   %s●%s  %sKeychain:%s      Disconnected (no credentials)\n", colorOrange, colorReset, colorBold, colorReset)
 	}
-	printStatusLine("Keychain", authStatus)
 
+	// Configuration
 	if config.Exists() {
 		cfg, err := config.Load()
 		if err == nil {
-			printStatusLine("Profile", cfg.CurrentProfile)
-			printStatusLine("Default Agent", cfg.DefaultAgent)
-			printStatusLine("Default Proxy", cfg.DefaultProxy)
-			printStatusLine("Version", cfg.Version)
+			fmt.Printf("   %s●%s  %sProfile:%s       %s\n", colorBlue, colorReset, colorBold, colorReset, cfg.CurrentProfile)
+			fmt.Printf("   %s●%s  %sDefault Agent:%s %s\n", colorBlue, colorReset, colorBold, colorReset, cfg.DefaultAgent)
+			fmt.Printf("   %s●%s  %sDefault Proxy:%s %s\n", colorBlue, colorReset, colorBold, colorReset, cfg.DefaultProxy)
+			fmt.Printf("   %s●%s  %sVersion:%s       %s\n", colorBlue, colorReset, colorBold, colorReset, cfg.Version)
 		} else {
-			printStatusLine("Config", fmt.Sprintf("Error loading config: %v", err))
+			fmt.Printf("   %s●%s  %sConfig:%s        %sError: %v%s\n", colorRed, colorReset, colorBold, colorReset, colorRed, err, colorReset)
 		}
 	} else {
-		printStatusLine("Config", "Not configured (run /init)")
+		fmt.Printf("   %s●%s  %sConfig:%s        Not configured (run /init)\n", colorOrange, colorReset, colorBold, colorReset)
 	}
 
+	// Proxy status
 	pStatus, err := proxy.Status()
 	if err == nil {
-		printStatusLine("Proxy State", string(pStatus.State))
+		stateCol := colorGreen
+		if pStatus.State != proxy.StateConnected {
+			stateCol = colorOrange
+		}
+		fmt.Printf("   %s●%s  %sProxy State:%s   %s%s%s\n", stateCol, colorReset, colorBold, colorReset, stateCol, pStatus.State, colorReset)
 		if pStatus.State == proxy.StateConnected {
-			printStatusLine("Proxy Uptime", pStatus.Uptime.Round(time.Second).String())
+			fmt.Printf("   %s●%s  %sProxy Uptime:%s  %s\n", colorGreen, colorReset, colorBold, colorReset, pStatus.Uptime.Round(time.Second).String())
 		}
 	} else {
-		printStatusLine("Proxy Status", fmt.Sprintf("Error: %v", err))
+		fmt.Printf("   %s●%s  %sProxy Status:%s  Offline (%v)\n", colorOrange, colorReset, colorBold, colorReset, err)
 	}
-
-	fmt.Printf("%s└────────────────────────────────────────────────────────────┘%s\n", colorBlue, colorReset)
 	fmt.Println()
-}
-
-func printStatusLine(label, value string) {
-	leftText := fmt.Sprintf("  %-15s %s", label+":", value)
-	padding := 60 - len(leftText)
-	if padding < 0 {
-		padding = 0
-	}
-	fmt.Printf("%s│%s%s%s%s│%s\n", colorBlue, colorReset, leftText, strings.Repeat(" ", padding), colorBlue, colorReset)
 }

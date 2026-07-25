@@ -58,3 +58,15 @@ func HasCredentials() bool {
 func Logout() error {
 	return keychain.Delete()
 }
+
+// GetUsername returns the username part of the stored email, if available.
+func GetUsername() string {
+	email, _, err := keychain.Load()
+	if err == nil && email != "" {
+		parts := strings.Split(email, "@")
+		if len(parts) > 0 {
+			return parts[0]
+		}
+	}
+	return ""
+}

@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"os/user"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -16,13 +19,22 @@ import (
 )
 
 const (
-	colorReset = "\033[0m"
-	colorDim   = "\033[2m"
-	colorBold  = "\033[1m"
-	colorRed   = "\033[31m"
-	colorGreen = "\033[32m"
-	colorBlue  = "\033[1;34m"
-	colorCyan  = "\033[36m"
+	colorReset  = "\033[0m"
+	colorDim    = "\033[38;5;244m"
+	colorBold   = "\033[1m"
+	colorPurple = "\033[38;5;141m"
+	colorBlue   = "\033[38;5;75m"
+	colorOrange = "\033[38;5;208m"
+	colorGreen  = "\033[38;5;84m"
+	colorRed    = "\033[38;5;203m"
+	colorYellow = "\033[38;5;220m"
+	colorCyan   = "\033[38;5;80m"
+)
+
+const (
+	symbolInfo    = "ℹ"
+	symbolSuccess = "✔"
+	symbolError   = "✖"
 )
 
 type AsyncCommandHandler interface {
@@ -47,11 +59,19 @@ func (stdReadWriter) Write(p []byte) (n int, err error) {
 	return os.Stdout.Write(p)
 }
 
+func printHorizontalLine() {
+	width := 80
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		width = w
+	}
+	fmt.Printf("%s%s%s\n", colorDim, strings.Repeat("─", width), colorReset)
+}
+
 func NewShell(router *Router) *Shell {
 	return &Shell{
 		router:   router,
 		renderer: &Renderer{},
-		prompt:   fmt.Sprintf("%stokenly%s %s›%s ", colorBold, colorReset, colorBlue, colorReset),
+		prompt:   "  ",
 	}
 }
 
@@ -61,10 +81,18 @@ func Start() error {
 }
 
 func (s *Shell) Run() error {
-	s.renderer.PrintWelcomeBox(auth.HasCredentials())
-
 	fd := int(os.Stdin.Fd())
 	isTTY := term.IsTerminal(fd)
+
+	s.renderer.PrintWelcomeBox(auth.HasCredentials())
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Printf("\n%s%s %sInterrupted. Exiting...%s\n", colorBold, colorYellow, symbolInfo, colorReset)
+		os.Exit(0)
+	}()
 
 	var t *term.Terminal
 	if isTTY {
@@ -72,10 +100,19 @@ func (s *Shell) Run() error {
 		t.AutoCompleteCallback = s.makeCompleter()
 	}
 
+	upperLineNeeded := true
+
 	for {
 		var input string
 
 		if isTTY {
+			if upperLineNeeded {
+				printHorizontalLine()
+				fmt.Println()
+				printHorizontalLine()
+				fmt.Print("\033[2A\r")
+			}
+
 			oldState, err := term.MakeRaw(fd)
 			if err != nil {
 				return err
@@ -90,6 +127,16 @@ func (s *Shell) Run() error {
 				}
 				return err
 			}
+
+			input = strings.TrimSpace(input)
+			if input == "" {
+				fmt.Print("\033[1A\r")
+				upperLineNeeded = false
+				continue
+			}
+
+			printHorizontalLine()
+			upperLineNeeded = true
 		} else {
 			scanner := bufio.NewScanner(os.Stdin)
 			if !scanner.Scan() {
@@ -99,11 +146,10 @@ func (s *Shell) Run() error {
 				break
 			}
 			input = scanner.Text()
-		}
-
-		input = strings.TrimSpace(input)
-		if input == "" {
-			continue
+			input = strings.TrimSpace(input)
+			if input == "" {
+				continue
+			}
 		}
 
 		parts := strings.Fields(input)
@@ -134,15 +180,16 @@ func (s *Shell) Run() error {
 
 			if cmdErr != nil {
 				if errors.Is(cmdErr, ErrExit) {
-					fmt.Printf("\n%sBye!%s\n\n", colorDim, colorReset)
+					fmt.Printf("\n%s%s %sTokenly session ended. Bye!%s\n\n", colorBold, symbolSuccess, colorGreen, colorReset)
 					return nil
 				}
+				fmt.Printf("\n%s%s %s%s\n\n", colorBold, symbolError, colorRed, cmdErr.Error())
 			}
 		} else {
 			if strings.HasPrefix(cmdName, "/") {
-				fmt.Printf("\n%s✖%s Unrecognized command: %s. Type %s/help%s for available commands.\n\n", colorRed, colorReset, cmdName, colorBold, colorReset)
+				fmt.Printf("\n%s%s %sUnrecognized command: %s. Type %s/help%s for available commands.\n\n", colorBold, symbolError, colorRed, cmdName, colorBold, colorReset)
 			} else {
-				fmt.Printf("\nYou typed: %s %s(Type /help to see available commands)%s\n\n", input, colorDim, colorReset)
+				fmt.Printf("\n%s%s You entered: %s%s %s(Type /help for available commands)%s\n\n", colorBold, colorGreen, colorReset, input, colorDim, colorReset)
 			}
 		}
 	}
@@ -177,47 +224,119 @@ func (s *Shell) makeCompleter() func(line string, pos int, key rune) (newLine st
 
 type Renderer struct{}
 
+func visualWidth(s string) int {
+	return utf8.RuneCountInString(s)
+}
+
 func (r *Renderer) PrintWelcomeBox(hasCredentials bool) {
-	fmt.Println()
-	fmt.Printf("%s┌────────────────────────────────────────────────────────────┐%s\n", colorBlue, colorReset)
-
-	titleText := "  Tokenly v0.1.0"
-	titlePadding := 60 - utf8.RuneCountInString(titleText)
-	fmt.Printf("%s│%s%s%s%s%s│%s%s\n",
-		colorBlue, colorReset,
-		titleText[:2], colorBold, titleText[2:], colorReset+strings.Repeat(" ", titlePadding),
-		colorBlue, colorReset)
-
-	fmt.Printf("%s│%s%s│%s%s\n", colorBlue, colorReset, strings.Repeat(" ", 60), colorBlue, colorReset)
-
-	var statusText string
-	var symbol string
-	var symbolCol string
-	if !hasCredentials {
-		symbol = "ℹ"
-		symbolCol = colorCyan
-		statusText = "No credentials configured. Run /init to get started."
-	} else {
-		symbol = "✔"
-		symbolCol = colorGreen
-		statusText = "Credentials loaded from system keychain."
+	displayName := "Dhanush"
+	if emailUser := auth.GetUsername(); emailUser != "" {
+		displayName = emailUser
+	} else if u, err := user.Current(); err == nil {
+		name := u.Username
+		if u.Name != "" {
+			name = u.Name
+		}
+		if name != "" {
+			displayName = name
+		}
+	}
+	if len(displayName) > 0 {
+		displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
 	}
 
-	textLen := 2 + 1 + 2 + utf8.RuneCountInString(statusText)
-	padding := 60 - textLen
-	if padding < 0 {
-		padding = 0
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "~"
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if strings.HasPrefix(cwd, home) {
+			cwd = "~" + strings.TrimPrefix(cwd, home)
+		}
 	}
 
-	fmt.Printf("%s│%s  %s%s%s  %s%s%s%s│%s\n",
-		colorBlue, colorReset,
-		symbolCol, symbol, colorReset,
-		colorDim, statusText, colorReset+strings.Repeat(" ", padding),
-		colorBlue, colorReset,
-	)
+	col1Width := 38
+	col2Width := 46
 
-	fmt.Printf("%s└────────────────────────────────────────────────────────────┘%s\n", colorBlue, colorReset)
+	col1Raw := []string{
+		fmt.Sprintf("  Welcome back %s!", displayName),
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"  Tokenly v0.1.0 · Local Proxy",
+		"  " + cwd,
+	}
+
+	col2Raw := []string{
+		"Tips for getting started",
+		"Run /init to configure credentials.",
+		"Type /help to see all available commands.",
+		"",
+		"Recent activity",
+		"No recent activity",
+	}
+
+	col1Formatted := make([]string, len(col1Raw))
+	for i, raw := range col1Raw {
+		formatted := raw
+		rawLen := visualWidth(raw)
+
+		if i == 11 {
+			if rawLen > col1Width {
+				truncated := "  ..." + cwd[len(cwd)-(col1Width-5):]
+				formatted = truncated
+				rawLen = visualWidth(truncated)
+			}
+		}
+
+		if rawLen < col1Width {
+			formatted += strings.Repeat(" ", col1Width-rawLen)
+		}
+		col1Formatted[i] = formatted
+	}
+
+	col2Formatted := make([]string, len(col1Raw))
+	for i := 0; i < len(col1Raw); i++ {
+		var raw string
+		if i < len(col2Raw) {
+			raw = col2Raw[i]
+		}
+		rawLen := visualWidth(raw)
+
+		formatted := raw
+		if i == 0 || i == 4 {
+			formatted = colorBold + colorGreen + raw + colorReset
+		} else if i == 1 {
+			formatted = strings.ReplaceAll(raw, "/init", colorGreen+"/init"+colorReset)
+		} else if i == 2 {
+			formatted = strings.ReplaceAll(raw, "/help", colorGreen+"/help"+colorReset)
+		}
+
+		if rawLen < col2Width {
+			formatted += strings.Repeat(" ", col2Width-rawLen)
+		}
+		col2Formatted[i] = formatted
+	}
+
+	insideWidth := col1Width + 4 + col2Width + 2
+	borderColor := colorDim
+
 	fmt.Println()
+	topLine := borderColor + "╭─" + colorReset + colorBold + "Tokenly v0.1.0 " + colorReset + borderColor + strings.Repeat("─", insideWidth-16) + "╮" + colorReset
+	fmt.Println(topLine)
+
+	for i := 0; i < len(col1Formatted); i++ {
+		fmt.Printf("%s│%s %s    %s %s│%s\n", borderColor, colorReset, col1Formatted[i], col2Formatted[i], borderColor, colorReset)
+	}
+
+	bottomLine := borderColor + "╰" + strings.Repeat("─", insideWidth) + "╯" + colorReset
+	fmt.Println(bottomLine)
 }
 
 type Spinner struct {
@@ -235,7 +354,7 @@ func (s *Spinner) Start(msg string) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		dots := []string{".  ", ".. ", "...", "   "}
 		i := 0
 		for {
 			select {
@@ -243,15 +362,19 @@ func (s *Spinner) Start(msg string) {
 				fmt.Print("\r\033[K")
 				return
 			default:
-				fmt.Printf("\r%s%s%s %s", colorBlue, frames[i], colorReset, msg)
-				i = (i + 1) % len(frames)
-				time.Sleep(100 * time.Millisecond)
+				fmt.Printf("\r%s %s%s", symbolInfo, msg, dots[i])
+				i = (i + 1) % len(dots)
+				time.Sleep(250 * time.Millisecond)
 			}
 		}
 	}()
 }
 
 func (s *Spinner) Stop() {
-	close(s.stopChan)
+	select {
+	case <-s.stopChan:
+	default:
+		close(s.stopChan)
+	}
 	s.wg.Wait()
 }
