@@ -13,24 +13,27 @@ import (
 
 const (
 	colorReset = "\033[0m"
-	colorDim   = "\033[2m"
+	colorDim   = "\033[38;5;244m"
 	colorBold  = "\033[1m"
-	colorRed   = "\033[31m"
-	colorGreen = "\033[32m"
+	colorRed   = "\033[38;5;203m"
+	colorGreen = "\033[38;5;84m"
+	colorTan   = "\033[38;5;215m"
 )
 
 // Init prompts the user for their credentials and saves them to the system keychain.
 func Init() error {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Printf("%s?%s %sEmail:%s %s›%s ", colorGreen, colorReset, colorBold, colorReset, colorDim, colorReset)
+	fmt.Printf("\n  %sConfigure Tokenly credentials%s\n\n", colorBold, colorReset)
+
+	fmt.Printf("  %s>%s %sEmail%s    ", colorTan, colorReset, colorBold, colorReset)
 	email, err := reader.ReadString('\n')
 	if err != nil {
 		return err
 	}
 	email = strings.TrimSpace(email)
 
-	fmt.Printf("%s?%s %sPassword:%s %s›%s ", colorGreen, colorReset, colorBold, colorReset, colorDim, colorReset)
+	fmt.Printf("  %s>%s %sPassword%s ", colorTan, colorReset, colorBold, colorReset)
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return err

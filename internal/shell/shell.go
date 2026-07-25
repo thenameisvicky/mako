@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"os/user"
 	"strings"
 	"sync"
 	"syscall"
@@ -32,10 +31,18 @@ const (
 )
 
 const (
-	symbolInfo    = "ℹ"
-	symbolSuccess = "✔"
-	symbolError   = "✖"
+	colorTan = "\033[38;5;215m"
 )
+
+const (
+	symbolInfo    = "●"
+	symbolSuccess = "⏺"
+	symbolError   = "⏺"
+	symbolBullet  = "⎿"
+)
+
+// spinnerFrames mirrors the pulsing star Claude Code shows while it works.
+var spinnerFrames = []string{"·", "✢", "✳", "∗", "✽", "✽", "✽", "∗", "✳", "✢"}
 
 type AsyncCommandHandler interface {
 	CommandHandler
@@ -59,19 +66,35 @@ func (stdReadWriter) Write(p []byte) (n int, err error) {
 	return os.Stdout.Write(p)
 }
 
-func printHorizontalLine() {
+func termWidth() int {
 	width := 80
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
 		width = w
 	}
-	fmt.Printf("%s%s%s\n", colorDim, strings.Repeat("─", width), colorReset)
+	return width
+}
+
+func printBoxTop() {
+	width := termWidth()
+	if width < 4 {
+		width = 4
+	}
+	fmt.Printf("%s╭%s╮%s\n", colorDim, strings.Repeat("─", width-2), colorReset)
+}
+
+func printBoxBottom() {
+	width := termWidth()
+	if width < 4 {
+		width = 4
+	}
+	fmt.Printf("%s╰%s╯%s\n", colorDim, strings.Repeat("─", width-2), colorReset)
 }
 
 func NewShell(router *Router) *Shell {
 	return &Shell{
 		router:   router,
 		renderer: &Renderer{},
-		prompt:   "  ",
+		prompt:   "  > ",
 	}
 }
 
@@ -90,26 +113,35 @@ func (s *Shell) Run() error {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		fmt.Printf("\n%s%s %sInterrupted. Exiting...%s\n", colorBold, colorYellow, symbolInfo, colorReset)
+		fmt.Printf("\n%sInterrupted%s\n", colorBold, colorReset)
 		os.Exit(0)
 	}()
 
 	var t *term.Terminal
 	if isTTY {
 		t = term.NewTerminal(stdReadWriter{}, s.prompt)
-		t.AutoCompleteCallback = s.makeCompleter()
+		t.AutoCompleteCallback = s.MakeCompleter()
 	}
 
 	upperLineNeeded := true
+	lastWidth := termWidth()
 
 	for {
 		var input string
 
 		if isTTY {
+			currentWidth := termWidth()
+			if currentWidth != lastWidth {
+				fmt.Print("\033[H\033[2J")
+				s.renderer.PrintWelcomeBox(auth.HasCredentials())
+				upperLineNeeded = true
+				lastWidth = currentWidth
+			}
+
 			if upperLineNeeded {
-				printHorizontalLine()
+				printBoxTop()
 				fmt.Println()
-				printHorizontalLine()
+				printBoxBottom()
 				fmt.Print("\033[2A\r")
 			}
 
@@ -135,7 +167,7 @@ func (s *Shell) Run() error {
 				continue
 			}
 
-			printHorizontalLine()
+			printBoxBottom()
 			upperLineNeeded = true
 		} else {
 			scanner := bufio.NewScanner(os.Stdin)
@@ -159,6 +191,10 @@ func (s *Shell) Run() error {
 		cmdName := parts[0]
 		cmdArgs := parts[1:]
 
+		if cmdName == "/" {
+			cmdName = "/help"
+		}
+
 		if s.router.HasCommand(cmdName) {
 			handler := s.router.commands[cmdName].Handler
 
@@ -180,23 +216,23 @@ func (s *Shell) Run() error {
 
 			if cmdErr != nil {
 				if errors.Is(cmdErr, ErrExit) {
-					fmt.Printf("\n%s%s %sTokenly session ended. Bye!%s\n\n", colorBold, symbolSuccess, colorGreen, colorReset)
+					fmt.Printf("\n  %sSee you next time.%s\n\n", colorDim, colorReset)
 					return nil
 				}
-				fmt.Printf("\n%s%s %s%s\n\n", colorBold, symbolError, colorRed, cmdErr.Error())
+				fmt.Printf("\n%s%s%s %s%s%s\n\n", colorRed, symbolError, colorReset, colorRed, cmdErr.Error(), colorReset)
 			}
 		} else {
 			if strings.HasPrefix(cmdName, "/") {
-				fmt.Printf("\n%s%s %sUnrecognized command: %s. Type %s/help%s for available commands.\n\n", colorBold, symbolError, colorRed, cmdName, colorBold, colorReset)
+				fmt.Printf("\n%s%s%s %sUnknown command %s%s%s. Run %s/help%s to see what's available.%s\n\n", colorRed, symbolError, colorReset, colorDim, colorReset, cmdName, colorDim, colorGreen, colorDim, colorReset)
 			} else {
-				fmt.Printf("\n%s%s You entered: %s%s %s(Type /help for available commands)%s\n\n", colorBold, colorGreen, colorReset, input, colorDim, colorReset)
+				fmt.Printf("\n  %sTokenly runs on slash commands. Try %s/help%s to get started.%s\n\n", colorDim, colorGreen, colorDim, colorReset)
 			}
 		}
 	}
 	return nil
 }
 
-func (s *Shell) makeCompleter() func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
+func (s *Shell) MakeCompleter() func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
 	return func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
 		if key != '\t' {
 			return "", 0, false
@@ -228,23 +264,15 @@ func visualWidth(s string) int {
 	return utf8.RuneCountInString(s)
 }
 
-func (r *Renderer) PrintWelcomeBox(hasCredentials bool) {
-	displayName := "Dhanush"
-	if emailUser := auth.GetUsername(); emailUser != "" {
-		displayName = emailUser
-	} else if u, err := user.Current(); err == nil {
-		name := u.Username
-		if u.Name != "" {
-			name = u.Name
-		}
-		if name != "" {
-			displayName = name
-		}
+func boxLine(colored, raw string, innerWidth int) string {
+	pad := innerWidth - visualWidth(raw)
+	if pad < 0 {
+		pad = 0
 	}
-	if len(displayName) > 0 {
-		displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
-	}
+	return fmt.Sprintf("%s│%s%s%s%s│%s", colorDim, colorReset, colored, strings.Repeat(" ", pad), colorDim, colorReset)
+}
 
+func (r *Renderer) PrintWelcomeBox(hasCredentials bool) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = "~"
@@ -255,88 +283,113 @@ func (r *Renderer) PrintWelcomeBox(hasCredentials bool) {
 		}
 	}
 
-	col1Width := 38
-	col2Width := 46
-
-	col1Raw := []string{
-		fmt.Sprintf("  Welcome back %s!", displayName),
-		"",
-		"",
-		"",
-		"",
-		"",
-		"",
-		"",
-		"",
-		"",
-		"  Tokenly v0.1.0 · Local Proxy",
-		"  " + cwd,
+	innerWidth := 62
+	if w := termWidth() - 2; w < innerWidth {
+		innerWidth = w
+	}
+	if innerWidth < 24 {
+		innerWidth = 24
 	}
 
-	col2Raw := []string{
-		"Tips for getting started",
-		"Run /init to configure credentials.",
-		"Type /help to see all available commands.",
-		"",
-		"Recent activity",
-		"No recent activity",
+	accountRaw := "  Not signed in — run /init to configure credentials"
+	accountColored := "  " + colorDim + "Not signed in — run " + colorReset + colorGreen + "/init" + colorReset + colorDim + " to configure credentials" + colorReset
+	if hasCredentials {
+		if u := auth.GetUsername(); u != "" {
+			accountRaw = "  Signed in as " + u
+			accountColored = "  " + colorDim + "Signed in as " + colorReset + u
+		} else {
+			accountRaw = "  Signed in"
+			accountColored = "  " + colorDim + "Signed in" + colorReset
+		}
 	}
 
-	col1Formatted := make([]string, len(col1Raw))
-	for i, raw := range col1Raw {
-		formatted := raw
-		rawLen := visualWidth(raw)
-
-		if i == 11 {
-			if rawLen > col1Width {
-				truncated := "  ..." + cwd[len(cwd)-(col1Width-5):]
-				formatted = truncated
-				rawLen = visualWidth(truncated)
+	if visualWidth(accountRaw) > innerWidth {
+		if hasCredentials {
+			accountRaw = "  Signed in"
+			accountColored = "  " + colorDim + "Signed in" + colorReset
+		} else {
+			accountRaw = "  Not signed in — run /init"
+			accountColored = "  " + colorDim + "Not signed in — run " + colorReset + colorGreen + "/init" + colorReset
+			if visualWidth(accountRaw) > innerWidth {
+				accountRaw = "  Not signed in"
+				accountColored = "  " + colorDim + "Not signed in" + colorReset
 			}
 		}
-
-		if rawLen < col1Width {
-			formatted += strings.Repeat(" ", col1Width-rawLen)
+	}
+	if visualWidth(accountRaw) > innerWidth {
+		keep := innerWidth - 3
+		if keep < 0 {
+			keep = 0
 		}
-		col1Formatted[i] = formatted
+		accountRaw = accountRaw[:keep]
+		accountColored = accountRaw
 	}
 
-	col2Formatted := make([]string, len(col1Raw))
-	for i := 0; i < len(col1Raw); i++ {
-		var raw string
-		if i < len(col2Raw) {
-			raw = col2Raw[i]
+	cwdRaw := "  " + cwd
+	if visualWidth(cwdRaw) > innerWidth {
+		keep := innerWidth - 5
+		if keep < 1 {
+			keep = 1
 		}
-		rawLen := visualWidth(raw)
-
-		formatted := raw
-		if i == 0 || i == 4 {
-			formatted = colorBold + colorGreen + raw + colorReset
-		} else if i == 1 {
-			formatted = strings.ReplaceAll(raw, "/init", colorGreen+"/init"+colorReset)
-		} else if i == 2 {
-			formatted = strings.ReplaceAll(raw, "/help", colorGreen+"/help"+colorReset)
+		if keep > len(cwd) {
+			keep = len(cwd)
 		}
-
-		if rawLen < col2Width {
-			formatted += strings.Repeat(" ", col2Width-rawLen)
+		cwd = "…" + cwd[len(cwd)-keep:]
+		cwdRaw = "  " + cwd
+	}
+	if visualWidth(cwdRaw) > innerWidth {
+		keep := innerWidth - 3
+		if keep < 0 {
+			keep = 0
 		}
-		col2Formatted[i] = formatted
+		cwdRaw = cwdRaw[:keep]
 	}
 
-	insideWidth := col1Width + 4 + col2Width + 2
-	borderColor := colorDim
+	title := "  Welcome"
+	titleColored := "  " + colorBold + "Welcome" + colorReset
+
+	helpRaw := "  /help for help, /status for your current setup"
+	helpColored := "  " + colorGreen + "/help" + colorReset + colorDim + " for help, " + colorReset + colorGreen + "/status" + colorReset + colorDim + " for your current setup" + colorReset
+
+	// Make help line responsive
+	if visualWidth(helpRaw) > innerWidth {
+		helpRaw = "  /help for help, /status for setup"
+		helpColored = "  " + colorGreen + "/help" + colorReset + colorDim + " for help, " + colorReset + colorGreen + "/status" + colorReset + colorDim + " for setup" + colorReset
+		if visualWidth(helpRaw) > innerWidth {
+			helpRaw = "  /help for help"
+			helpColored = "  " + colorGreen + "/help" + colorReset + colorDim + " for help" + colorReset
+			if visualWidth(helpRaw) > innerWidth {
+				helpRaw = "  /help"
+				helpColored = "  " + colorGreen + "/help" + colorReset
+			}
+		}
+	}
+	if visualWidth(helpRaw) > innerWidth {
+		keep := innerWidth - 3
+		if keep < 0 {
+			keep = 0
+		}
+		helpRaw = helpRaw[:keep]
+		helpColored = helpRaw
+	}
+
+	rows := [][2]string{
+		{titleColored, title},
+		{"", ""},
+		{accountColored, accountRaw},
+		{"", ""},
+		{helpColored, helpRaw},
+		{"", ""},
+		{colorDim + cwdRaw + colorReset, cwdRaw},
+	}
 
 	fmt.Println()
-	topLine := borderColor + "╭─" + colorReset + colorBold + "Tokenly v0.1.0 " + colorReset + borderColor + strings.Repeat("─", insideWidth-16) + "╮" + colorReset
-	fmt.Println(topLine)
-
-	for i := 0; i < len(col1Formatted); i++ {
-		fmt.Printf("%s│%s %s    %s %s│%s\n", borderColor, colorReset, col1Formatted[i], col2Formatted[i], borderColor, colorReset)
+	fmt.Printf("%s╭%s╮%s\n", colorDim, strings.Repeat("─", innerWidth), colorReset)
+	for _, row := range rows {
+		fmt.Println(boxLine(row[0], row[1], innerWidth))
 	}
-
-	bottomLine := borderColor + "╰" + strings.Repeat("─", insideWidth) + "╯" + colorReset
-	fmt.Println(bottomLine)
+	fmt.Printf("%s╰%s╯%s\n", colorDim, strings.Repeat("─", innerWidth), colorReset)
+	fmt.Printf("\n  %s? for shortcuts%s\n", colorDim, colorReset)
 }
 
 type Spinner struct {
@@ -354,7 +407,7 @@ func (s *Spinner) Start(msg string) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		dots := []string{".  ", ".. ", "...", "   "}
+		start := time.Now()
 		i := 0
 		for {
 			select {
@@ -362,9 +415,14 @@ func (s *Spinner) Start(msg string) {
 				fmt.Print("\r\033[K")
 				return
 			default:
-				fmt.Printf("\r%s %s%s", symbolInfo, msg, dots[i])
-				i = (i + 1) % len(dots)
-				time.Sleep(250 * time.Millisecond)
+				elapsed := int(time.Since(start).Seconds())
+				frame := spinnerFrames[i%len(spinnerFrames)]
+				fmt.Printf("\r\033[K%s%s%s %s%s%s %s(%ds · esc to interrupt)%s",
+					colorTan, frame, colorReset,
+					colorBold, msg, colorReset,
+					colorDim, elapsed, colorReset)
+				i++
+				time.Sleep(120 * time.Millisecond)
 			}
 		}
 	}()
