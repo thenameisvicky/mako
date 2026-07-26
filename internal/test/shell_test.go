@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/thenameisvicky/tokenly-cli/internal/shell"
+	"github.com/thenameisvicky/tokenly-mako/internal/shell"
 )
 
 type mockAsyncHandler struct {

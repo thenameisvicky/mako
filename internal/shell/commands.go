@@ -3,8 +3,8 @@ package shell
 import (
 	"fmt"
 
-	"github.com/thenameisvicky/tokenly-cli/internal/agent_runtime"
-	"github.com/thenameisvicky/tokenly-cli/internal/auth"
+	"github.com/thenameisvicky/tokenly-mako/internal/agent_runtime"
+	"github.com/thenameisvicky/tokenly-mako/internal/auth"
 )
 
 func InitRouter() *Router {

@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"github.com/thenameisvicky/tokenly-cli/internal/shell"
+	"github.com/thenameisvicky/tokenly-mako/internal/shell"
 )
 
 func main() {
