@@ -55,7 +55,7 @@ sequenceDiagram
     Mako->>Mako: Locate 'claude' executable in PATH
     Mako->>Agent: Fork/Exec 'claude' (attach stdin/stdout/stderr)
     activate Agent
-    Dev<->>Agent: Interactive session (Claude Code)
+    Dev->>Agent: Interactive session (Claude Code)
     Dev->>Agent: Exit Claude
     deactivate Agent
     Agent-->>Mako: Process exit
@@ -65,48 +65,30 @@ sequenceDiagram
 
 ## Usage Examples
 
-Below are standard invocation commands and interactive shell operations.
+Below are the standard invocation commands and interactive shell operations.
 
-### Configuration and Session Management
+### Running Mako
+
+Since Mako is designed as a local-first interactive shell, you run the executable directly to start the environment:
+
 ```bash
-# Authenticate with Tokenly
-mako login
+# Build the Mako executable
+go build -o mako ./cmd/mako
 
-# Remove credentials from the system keychain
-mako logout
+# Run the interactive shell
+./mako
 ```
 
-### Proxy Controller
-```bash
-# Start background auth & proxy agent
-mako proxy start
+### Interactive Shell Commands
 
-# Stop the running proxy agent
-mako proxy stop
+Once inside the interactive Mako terminal, you control the runtime environment using slash commands. The following commands are registered and supported:
 
-# Query the status of the proxy daemon
-mako proxy status
-```
-
-### System Diagnostics and Management
-```bash
-# Run environment diagnostics and dependency health checks
-mako doctor
-
-# Check for updates and install the latest release
-mako update
-
-# Print current Mako release version information
-mako version
-```
-
-### Interactive Sub-Shell Commands
-Once inside the interactive Mako terminal, you can direct runtime control to downstream AI coding agents:
-```
-/claude     - Launch Claude agent
-/codex      - Launch Codex agent
-```
-
-## Credits
-
-- **Vigneshwaran B** (thenameisvicky)
+| Command | Description |
+| :--- | :--- |
+| `/init` | Prompt for email and password credentials, then save them securely to the system keychain. |
+| `/status` | Display the current keychain authentication status (connected/disconnected). |
+| `/claude` | Locate and launch the external Claude Code CLI agent in a sub-shell, attaching standard streams. |
+| `/logout` | Remove the saved credentials from the system keychain. |
+| `/clear` | Clear the terminal screen (alias: `/clean`). |
+| `/help` | Show the help menu listing all available slash commands. |
+| `/exit` | Exit the interactive Mako shell. |
