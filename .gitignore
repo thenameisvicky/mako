@@ -1,0 +1,46 @@
+# Binaries and Executables
+/mako
+/mako.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+
+# OS Specific Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Go Workspaces and Tooling Cache
+go.work
+go.work.sum
+.go/
+vendor/
+
+# Test and Coverage Artifacts
+*.out
+*.cover
+coverage.txt
+coverage.html
+
+# Local Environment and Diagnostics
+.env
+.env.*
+!.env.example
+*.log
