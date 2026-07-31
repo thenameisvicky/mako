@@ -57,7 +57,7 @@ appointed representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders at **conduct@tokenly.com** (placeholder contact). All
+reported to the community leaders at **vigneshbalasubramaniyan3@gmail.com**. All
 reports will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
