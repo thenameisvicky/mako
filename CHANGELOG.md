@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.0] - 15-08-2026
+
+### Added
+- **Monorepo Migration**: Unified CLI client (`mako`) and Gateway server (`tokenly-gateway`) into a single Go workspace monorepo under the `github.com/thenameisvicky/tokenly-gateway` module.
+- **Shared Data Structures**: Introduced `pkg/models` to define shared API payloads (e.g., `LoginRequest`, `LoginResponse`) used for communication between the CLI and the Gateway.
+- **Unified Build Pipeline**: Configured compiling for both CLI (`bin/mako`) and Gateway (`bin/gateway`) from a single root package layout.
+
 ## [v0.1.0-alpha] - 26-07-2026
+
 
 ### Added
 - **Interactive Go Shell**: Low-latency terminal REPL using raw console mode with history, command routing, and basic autocompletion.

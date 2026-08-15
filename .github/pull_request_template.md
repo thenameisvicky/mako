@@ -1,21 +1,24 @@
+# PR Format Rules
+<!-- 
+PR Title Format: [TYPE] [PR-XXX] Short Description
+Example: [FEAT] [PR-001] Merge CLI and Gateway into monorepo
+Types: FEAT, REF, FIX, CHORE
+-->
+
 ## Description
 Please include a summary of the changes and the related issue/feature ticket.
 
+## PR Number & Tracking
+- PR Number: #XXX (Three-digit running counter starting from 000)
+
 ## Type of Change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Documentation update
-- [ ] Refactoring (no functional changes)
+- [ ] [FEAT] New feature (non-breaking change which adds functionality)
+- [ ] [REF] Refactoring (code reorganization, no behavior changes)
+- [ ] [FIX] Bug fix (non-breaking change which fixes an issue)
+- [ ] [CHORE] Maintenance, dependency updates, configuration
 
-## How Has This Been Tested?
-Please describe the tests that you ran to verify your changes. Provide instructions so we can reproduce.
+## Detailed Changes
+Briefly list files/packages added, modified, or deleted.
 
-- [ ] Unit tests (`go test ./...`)
-- [ ] Manual CLI testing (list steps executed below)
-
-## Checklist
-- [ ] Code follows the code style and guidelines of this project.
-- [ ] I have run `gofmt` and `go vet ./...` locally.
-- [ ] I have added tests that prove my fix is effective or that my feature works.
-- [ ] I have updated the `README.md` and related slash command docs if applicable.
-- [ ] My commits follow the Conventional Commits format.
+## Test Cases Tested
+Describe the specific scenarios and test cases executed. Include commands to run them.

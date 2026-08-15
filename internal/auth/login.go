@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/thenameisvicky/tokenly-mako/internal/keychain"
+	"github.com/thenameisvicky/tokenly-gateway/internal/keychain"
 	"golang.org/x/term"
 )
 

@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/thenameisvicky/tokenly-mako/internal/auth"
+	"github.com/thenameisvicky/tokenly-gateway/internal/auth"
 	"golang.org/x/term"
 )
 
