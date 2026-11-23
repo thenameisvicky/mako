@@ -77,6 +77,9 @@ function Sessions() {
   if (loading) return <Spinner />;
   if (open) return <Reader session={open} onBack={() => setOpen(null)} onContinue={() => copy(open.sessionId)} note={note} />;
 
+  const list = sessions ?? [];
+  const mine = list.filter((s) => s.mine).length;
+
   return (
     <>
       <PageHead eyebrow="Shared sessions" title="Pick up where your team left off">
@@ -86,59 +89,95 @@ function Sessions() {
       <div className="stack">
         {(error || note) && <Notice ok={!error && note.startsWith("Copied")}>{error || note}</Notice>}
 
-        {sessions?.length ? (
-          <div className="cols">
-            {sessions.map((s) => (
-              <SessionCard
-                key={s.sessionId}
-                s={s}
-                busy={busyId === s.sessionId}
-                onOpen={() => read(s.sessionId)}
-                onContinue={() => copy(s.sessionId)}
-              />
-            ))}
-          </div>
+        <div className="stats">
+          <Stat label="Shared sessions" value={list.length} />
+          <Stat label="Synced by you" value={mine} />
+          <Stat label="By teammates" value={list.length - mine} />
+        </div>
+
+        {list.length ? (
+          <section className="card card-flush">
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Session</th>
+                    <th>Repository</th>
+                    <th>Owner</th>
+                    <th className="num">Messages</th>
+                    <th>Last synced</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((s) => (
+                    <Row key={s.sessionId} s={s} busy={busyId === s.sessionId} onOpen={() => read(s.sessionId)} onContinue={() => copy(s.sessionId)} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         ) : (
-          !error && (
-            <Card>
-              <p className="empty">
-                Nothing shared yet. Run <code>/local-chat-sync</code> in mako to share this machine&apos;s sessions.
-              </p>
-            </Card>
-          )
+          !error && <Quickstart />
         )}
       </div>
     </>
   );
 }
 
-function SessionCard({ s, busy, onOpen, onContinue }: {
+const Stat = ({ label, value }: { label: string; value: number }) => (
+  <div className="card stat">
+    <span className="small muted">{label}</span>
+    <span className="stat-value">{value}</span>
+  </div>
+);
+
+function Row({ s, busy, onOpen, onContinue }: {
   s: ChatSession;
   busy: boolean;
   onOpen: () => void;
   onContinue: () => void;
 }) {
   return (
-    <article className="card session">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <span className="mono faint">{s.sessionId.slice(0, 8)}</span>
-        {s.mine ? <span className="tag tag-ok">yours</span> : <span className="tag">teammate</span>}
-      </div>
-      <h3>{s.title || "Untitled session"}</h3>
-      <div className="meta">
-        <span>Repository <b>{repoName(s.projectPath)}</b></span>
-        <span>Last synced <b>{ago(s.syncedAt)}</b></span>
-        <span><b>{s.messageCount}</b> messages</span>
-      </div>
-      <div className="row" style={{ marginTop: 6 }}>
-        <button className="btn btn-sm" onClick={onOpen} disabled={busy}>
-          {busy ? "Opening…" : "Open"}
-        </button>
-        <button className="btn btn-sm btn-primary" onClick={onContinue}>
-          Continue
-        </button>
-      </div>
-    </article>
+    <tr>
+      <td>
+        <div className="cell-title">
+          <button className="link-title" onClick={onOpen} disabled={busy}>
+            {busy ? "Opening…" : s.title || "Untitled session"}
+          </button>
+          <span className="mono faint">{s.sessionId.slice(0, 8)}</span>
+        </div>
+      </td>
+      <td className="mono">{repoName(s.projectPath)}</td>
+      <td>{s.mine ? <span className="tag tag-ok">you</span> : <span className="tag">teammate</span>}</td>
+      <td className="num mono">{s.messageCount}</td>
+      <td className="muted">{ago(s.syncedAt)}</td>
+      <td className="actions">
+        <button className="btn btn-sm" onClick={onContinue}>Continue</button>
+      </td>
+    </tr>
+  );
+}
+
+/** Shown before anything is synced: the three steps to share a first session. */
+function Quickstart() {
+  return (
+    <Card title="Share your first session">
+      <ol className="steps">
+        <li>
+          <span>Sign in from the CLI</span>
+          <code className="cmd">mako → /login</code>
+        </li>
+        <li>
+          <span>Upload this machine&apos;s Claude Code sessions</span>
+          <code className="cmd">/local-chat-sync</code>
+        </li>
+        <li>
+          <span>On another machine, import one and resume it</span>
+          <code className="cmd">/local-chat-import &lt;id&gt; → claude --resume</code>
+        </li>
+      </ol>
+    </Card>
   );
 }
 

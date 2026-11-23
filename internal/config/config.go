@@ -7,14 +7,13 @@ import (
 )
 
 type Config struct {
-	PORT                  string
-	DB_URL                string
-	JWT_SECRET            string
-	ENCRYPTION_KEY        string
-	APP_BASE_URL          string
-	UPSTREAM_PROVIDER_URL string
-	CORS_ALLOWED_ORIGINS  []string
-	Address               string
+	PORT                 string
+	DB_URL               string
+	JWT_SECRET           string
+	ENCRYPTION_KEY       string
+	APP_BASE_URL         string
+	CORS_ALLOWED_ORIGINS []string
+	Address              string
 }
 
 func Load() Config {
@@ -23,18 +22,16 @@ func Load() Config {
 	jwtSecret := getEnvOrFatal("JWT_SECRET")
 	encryptionKey := getEnvOrFatal("ENCRYPTION_KEY")
 	appBaseURL := getEnvOrFatal("APP_BASE_URL")
-	upstreamURL := getEnvOrFatal("UPSTREAM_PROVIDER_URL")
 	corsOrigins := getEnvOrFatal("CORS_ALLOWED_ORIGINS")
 
 	return Config{
-		PORT:                  port,
-		DB_URL:                dbURL,
-		JWT_SECRET:            jwtSecret,
-		ENCRYPTION_KEY:        encryptionKey,
-		APP_BASE_URL:          appBaseURL,
-		UPSTREAM_PROVIDER_URL: upstreamURL,
-		CORS_ALLOWED_ORIGINS:  splitAndTrim(corsOrigins),
-		Address:               ":" + port,
+		PORT:                 port,
+		DB_URL:               dbURL,
+		JWT_SECRET:           jwtSecret,
+		ENCRYPTION_KEY:       encryptionKey,
+		APP_BASE_URL:         appBaseURL,
+		CORS_ALLOWED_ORIGINS: splitAndTrim(corsOrigins),
+		Address:              ":" + port,
 	}
 }
 

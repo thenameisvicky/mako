@@ -18,7 +18,7 @@ func okHandler() http.Handler {
 func TestCORSAllowsConfiguredOrigin(t *testing.T) {
 	h := CORSMiddleware([]string{"http://localhost:3000"})(okHandler())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/policy", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chats", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -34,7 +34,7 @@ func TestCORSAllowsConfiguredOrigin(t *testing.T) {
 func TestCORSDoesNotReflectUnknownOrigin(t *testing.T) {
 	h := CORSMiddleware([]string{"http://localhost:3000"})(okHandler())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/policy", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chats", nil)
 	req.Header.Set("Origin", "https://evil.example.com")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -48,7 +48,7 @@ func TestCORSPreflightShortCircuits(t *testing.T) {
 		reached = true
 	}))
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/v1/policy", nil)
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/chats", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -86,7 +86,7 @@ func TestCORSPortWildcardAllowsAnyPortOnHost(t *testing.T) {
 		"http://localhost:3002",
 		"http://localhost:8123",
 	} {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/policy", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chats", nil)
 		req.Header.Set("Origin", origin)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
@@ -106,7 +106,7 @@ func TestCORSPortWildcardDoesNotMatchLookalikeHosts(t *testing.T) {
 		"https://localhost:3000",
 		"http://localhost:",
 	} {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/policy", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/chats", nil)
 		req.Header.Set("Origin", origin)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)

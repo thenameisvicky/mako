@@ -107,31 +107,14 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// extractToken pulls the Mako token off a request.
-//
-// X-Mako-Token is the canonical header. Since the proxy no longer swaps
-// credentials, Authorization and x-api-key now carry the caller's own provider
-// key on proxied requests and must not be read as a Mako token there.
-// They are still accepted on non-proxy API calls, where no provider key is in
-// play, so existing clients keep working.
+// extractToken pulls the Mako token off a request. X-Mako-Token is canonical;
+// a standard "Authorization: Bearer" header is also accepted.
 func extractToken(r *http.Request) string {
 	if t := strings.TrimSpace(r.Header.Get("X-Mako-Token")); t != "" {
 		return strings.TrimSpace(strings.TrimPrefix(t, "Bearer "))
 	}
-
-	if isProxyPath(r.URL.Path) {
-		return ""
-	}
-
 	if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
 		return strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 	}
-	return strings.TrimSpace(r.Header.Get("x-api-key"))
-}
-
-// isProxyPath reports whether a path is forwarded upstream, where the
-// Authorization header belongs to the provider rather than to Mako.
-func isProxyPath(path string) bool {
-	return strings.HasPrefix(path, "/api/v1/proxy") ||
-		strings.HasPrefix(path, "/api/v1/messages")
+	return ""
 }

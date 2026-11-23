@@ -31,18 +31,6 @@ type User struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-type Credential struct {
-	ID            string    `json:"id"`
-	UserID        string    `json:"user_id"`
-	TeamID        string    `json:"team_id"`
-	Provider      string    `json:"provider"`
-	Ciphertext    string    `json:"ciphertext"`
-	Nonce         string    `json:"nonce"`
-	FlagUseStatus int       `json:"flag_use_status"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-}
-
 type Storage struct {
 	db *sql.DB
 }
@@ -105,67 +93,6 @@ func (s *Storage) GetUserByUsername(ctx context.Context, username string) (*User
 	return scanUser(s.db.QueryRowContext(ctx, query, args...))
 }
 
-// GetCredential retrieves a credential by userID and provider
-func (s *Storage) GetCredential(ctx context.Context, userID string, provider string) (*Credential, error) {
-	qb := NewQueryBuilder().
-		Select("id", "user_id", "team_id", "provider", "ciphertext", "nonce", "flag_use_status", "created_at", "updated_at").
-		From("credentials").
-		Where("user_id", userID).
-		Where("provider", provider).
-		Where("flag_use_status", 1)
-
-	query, args, err := qb.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	// SQL: SELECT id, user_id, team_id, provider, ciphertext, nonce, flag_use_status, created_at, updated_at FROM credentials WHERE user_id = $1 AND provider = $2 AND flag_use_status = $3
-	row := s.db.QueryRowContext(ctx, query, args...)
-
-	var c Credential
-	err = row.Scan(&c.ID, &c.UserID, &c.TeamID, &c.Provider, &c.Ciphertext, &c.Nonce, &c.FlagUseStatus, &c.CreatedAt, &c.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan credential: %w", err)
-	}
-	return &c, nil
-}
-
-// CreateCredential inserts a new credential
-func (s *Storage) CreateCredential(ctx context.Context, cred *Credential) error {
-	now := time.Now()
-	cred.CreatedAt = now
-	cred.UpdatedAt = now
-	cred.FlagUseStatus = 1
-
-	cols := []string{"user_id", "team_id", "provider", "ciphertext", "nonce", "flag_use_status", "created_at", "updated_at"}
-	vals := []interface{}{cred.UserID, cred.TeamID, cred.Provider, cred.Ciphertext, cred.Nonce, cred.FlagUseStatus, cred.CreatedAt, cred.UpdatedAt}
-
-	if cred.ID != "" {
-		cols = append([]string{"id"}, cols...)
-		vals = append([]interface{}{cred.ID}, vals...)
-	}
-
-	qb := NewQueryBuilder().
-		InsertInto("credentials").
-		Columns(cols...).
-		Values(vals...)
-
-	query, args, err := qb.Build()
-	if err != nil {
-		return err
-	}
-
-	query += " RETURNING id"
-	err = s.db.QueryRowContext(ctx, query, args...).Scan(&cred.ID)
-	if err != nil {
-		return fmt.Errorf("failed to create credential: %w", err)
-	}
-	return nil
-}
-
 // GetTeamForUser retrieves the team of a specific user
 func (s *Storage) GetTeamForUser(ctx context.Context, userID string) (*Team, error) {
 	user, err := s.GetUserByID(ctx, userID)
@@ -199,39 +126,6 @@ func (s *Storage) GetTeamForUser(ctx context.Context, userID string) (*Team, err
 		return nil, fmt.Errorf("failed to scan team: %w", err)
 	}
 	return &t, nil
-}
-
-// UpdateCredential updates an existing credential
-func (s *Storage) UpdateCredential(ctx context.Context, cred *Credential) error {
-	now := time.Now()
-	cred.UpdatedAt = now
-
-	qb := NewQueryBuilder().
-		Update("credentials").
-		Set("ciphertext", cred.Ciphertext).
-		Set("nonce", cred.Nonce).
-		Set("updated_at", cred.UpdatedAt).
-		Where("id", cred.ID).
-		Where("flag_use_status", 1)
-
-	query, args, err := qb.Build()
-	if err != nil {
-		return err
-	}
-
-	// SQL: UPDATE credentials SET ciphertext = $1, nonce = $2, updated_at = $3 WHERE id = $4 AND flag_use_status = $5
-	res, err := s.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return fmt.Errorf("failed to update credential: %w", err)
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return fmt.Errorf("no credential rows updated")
-	}
-	return nil
 }
 
 // DeleteRowData performs soft-deletion by setting flag_use_status to 0

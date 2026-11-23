@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/thenameisvicky/tokenly-mako/internal/requestctx"
-	"github.com/thenameisvicky/tokenly-mako/internal/telemetry"
 )
 
 type loggingResponseWriter struct {
@@ -45,8 +44,8 @@ func GenerateRequestID() string {
 	return string(buf[16:48])
 }
 
-// LoggingMiddleware logs safe metadata of each request and updates the latency tracker
-func LoggingMiddleware(tracker *telemetry.LatencyTracker) func(http.Handler) http.Handler {
+// LoggingMiddleware logs safe metadata of each request.
+func LoggingMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -70,37 +69,14 @@ func LoggingMiddleware(tracker *telemetry.LatencyTracker) func(http.Handler) htt
 			// Serve the request
 			next.ServeHTTP(lrw, r)
 
-			duration := time.Since(start)
-			tracker.Record(duration)
-
-			userID := "unauthenticated"
-			teamID := "unauthenticated"
-			provider := "none"
-			cacheHitStr := "n/a"
-
+			userID, teamID := "unauthenticated", "unauthenticated"
 			if state.User != nil {
-				userID = state.User.ID
-				teamID = state.User.TeamID
-			}
-			if state.Provider != "" {
-				provider = state.Provider
-				if state.CacheHit {
-					cacheHitStr = "HIT"
-				} else {
-					cacheHitStr = "MISS"
-				}
+				userID, teamID = state.User.ID, state.User.TeamID
 			}
 
-			model := state.Model
-			if model == "" {
-				model = "none"
-			}
-
-			// Metadata only. Never log the Mako token, the caller's provider key,
-			// any Authorization header, or the request body.
-			log.Printf("[Request] id=%s method=%s path=%s status=%d duration=%s user_id=%s team_id=%s provider=%s model=%s cache=%s tokens_in=%d tokens_out=%d",
-				state.RequestID, r.Method, r.URL.Path, lrw.statusCode, duration, userID, teamID,
-				provider, model, cacheHitStr, state.InputTokens, state.OutputTokens)
+			// Metadata only. Never log the Mako token or the request body.
+			log.Printf("[Request] id=%s method=%s path=%s status=%d duration=%s user_id=%s team_id=%s",
+				state.RequestID, r.Method, r.URL.Path, lrw.statusCode, time.Since(start), userID, teamID)
 
 			// Clean up and release the request state back to the pool
 			requestctx.ReleaseState(state)

@@ -4,234 +4,111 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/thenameisvicky/tokenly-mako/internal/auth"
 	"github.com/thenameisvicky/tokenly-mako/internal/config"
-	"github.com/thenameisvicky/tokenly-mako/internal/encryption"
 	"github.com/thenameisvicky/tokenly-mako/internal/server"
 	"github.com/thenameisvicky/tokenly-mako/internal/storage"
 	"github.com/thenameisvicky/tokenly-mako/pkg/models"
 )
 
+// TestFullServerPipeline signs in, syncs a transcript, then lists and reads it back.
 func TestFullServerPipeline(t *testing.T) {
 	ctx := context.Background()
 
-	// 1. Create mock upstream provider server
-	mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		apiKeyHeader := r.Header.Get("x-api-key")
-
-		if authHeader != "Bearer my-secret-anthropic-key" || apiKeyHeader != "my-secret-anthropic-key" {
-			w.WriteHeader(http.StatusForbidden)
-			_, _ = w.Write([]byte("forbidden mock upstream"))
-			return
-		}
-
-		if r.URL.Path != "/proxy" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"mock":"response"}`))
-	}))
-	defer mockUpstream.Close()
-
-	// 2. Setup database records (User, Team, and Credential)
 	db, err := storage.New(testDBURL)
 	require.NoError(t, err)
 	defer db.Close()
 
 	teamID := uuid.New().String()
 	userID := uuid.New().String()
-
-	_ = db.CreateTeam(ctx, &storage.Team{ID: teamID, Name: "Proxy Pipeline Team"})
+	_ = db.CreateTeam(ctx, &storage.Team{ID: teamID, Name: "Chat Sync Team"})
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("mypassword"), 10)
+	username := "pipeline_user_" + uuid.New().String()[:8]
 	_ = db.CreateUser(ctx, &storage.User{
 		ID:       userID,
-		Username: "pipeline_user_" + uuid.New().String()[:8],
-		Email:    "pipeline_user_" + uuid.New().String()[:8] + "@example.com",
+		Username: username,
+		Email:    username + "@example.com",
 		Password: string(hashedPassword),
 		TeamID:   teamID,
 		Role:     "owner",
 	})
 
-	// Encrypt the Anthropic API key
-	enc, _ := encryption.New(testEncryptionKey)
-	encValue, err := enc.Encrypt("my-secret-anthropic-key")
-	require.NoError(t, err)
-
-	_ = db.CreateCredential(ctx, &storage.Credential{
-		ID:         uuid.New().String(),
-		UserID:     userID,
-		TeamID:     teamID,
-		Provider:   "anthropic",
-		Ciphertext: string(encValue.Ciphertext),
-		Nonce:      string(encValue.Nonce),
+	srv := server.New(config.Config{
+		PORT:           "8081",
+		DB_URL:         testDBURL,
+		JWT_SECRET:     testJWTSecret,
+		ENCRYPTION_KEY: testEncryptionKey,
+		APP_BASE_URL:   "http://localhost:8081",
+		Address:        ":8081",
 	})
-
-	// 3. Initialize Proxy Server pointing to mock upstream
-	cfg := config.Config{
-		PORT:                  "8081",
-		DB_URL:                testDBURL,
-		JWT_SECRET:            testJWTSecret,
-		ENCRYPTION_KEY:        testEncryptionKey,
-		APP_BASE_URL:          "http://localhost:8081",
-		UPSTREAM_PROVIDER_URL: mockUpstream.URL,
-		Address:               ":8081",
-	}
-
-	srv := server.New(cfg)
-	testProxyServer := httptest.NewServer(srv.Handler())
-	defer testProxyServer.Close()
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
 	defer func() { _ = srv.Close(ctx) }()
 
-	// 4. Test login to get a Mako token
-	dbUser, err := db.GetUserByID(ctx, userID)
+	// Health
+	healthResp, err := http.Get(ts.URL + "/health")
 	require.NoError(t, err)
-	require.NotNil(t, dbUser)
-
-	loginPayload, _ := json.Marshal(map[string]string{
-		"username": dbUser.Username,
-		"password": "mypassword",
-	})
-
-	resp, err := http.Post(testProxyServer.URL+"/api/v1/login", "application/json", bytes.NewBuffer(loginPayload))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var loginResp models.LoginResponse
-	err = json.NewDecoder(resp.Body).Decode(&loginResp)
-	require.NoError(t, err)
-	assert.Equal(t, "success", loginResp.Status)
-	assert.NotEmpty(t, loginResp.Token)
-
-	token := loginResp.Token
-
-	// 5. Query /health to check if tracker works
-	healthResp, err := http.Get(testProxyServer.URL + "/health")
-	require.NoError(t, err)
-	defer healthResp.Body.Close()
+	healthResp.Body.Close()
 	assert.Equal(t, http.StatusOK, healthResp.StatusCode)
 
-	// 6. Access proxy endpoint using Mako token
-	req, err := http.NewRequest(http.MethodPost, testProxyServer.URL+"/api/v1/proxy", bytes.NewBuffer([]byte(`{"messages":[]}`)))
+	// Login
+	loginPayload, _ := json.Marshal(map[string]string{"username": username, "password": "mypassword"})
+	resp, err := http.Post(ts.URL+"/api/v1/login", "application/json", bytes.NewBuffer(loginPayload))
 	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer "+token)
+	var login models.LoginResponse
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&login))
+	resp.Body.Close()
+	require.Equal(t, "success", login.Status)
+	require.NotEmpty(t, login.Token)
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	proxyResp, err := client.Do(req)
-	require.NoError(t, err)
-	defer proxyResp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, proxyResp.StatusCode)
-
-	respBody, err := io.ReadAll(proxyResp.Body)
-	require.NoError(t, err)
-	var upstreamJSON map[string]string
-	err = json.Unmarshal(respBody, &upstreamJSON)
-	require.NoError(t, err)
-	assert.Equal(t, "response", upstreamJSON["mock"])
-}
-
-func BenchmarkProxyPipeline(b *testing.B) {
-	ctx := context.Background()
-
-	// 1. Setup mock upstream
-	mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"success"}`))
-	}))
-	defer mockUpstream.Close()
-
-	// 2. Setup database records
-	db, err := storage.New(testDBURL)
-	if err != nil {
-		b.Fatalf("failed to connect to db: %v", err)
-	}
-	defer db.Close()
-
-	teamID := uuid.New().String()
-	userID := uuid.New().String()
-
-	_ = db.CreateTeam(ctx, &storage.Team{ID: teamID, Name: "Benchmark Team"})
-
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password"), 10)
-	_ = db.CreateUser(ctx, &storage.User{
-		ID:       userID,
-		Username: "bench_user_" + uuid.New().String()[:8],
-		Email:    "bench_user_" + uuid.New().String()[:8] + "@example.com",
-		Password: string(hashedPassword),
-		TeamID:   teamID,
-		Role:     "owner",
-	})
-
-	enc, _ := encryption.New(testEncryptionKey)
-	encValue, _ := enc.Encrypt("my-secret-anthropic-key")
-
-	_ = db.CreateCredential(ctx, &storage.Credential{
-		ID:         uuid.New().String(),
-		UserID:     userID,
-		TeamID:     teamID,
-		Provider:   "anthropic",
-		Ciphertext: string(encValue.Ciphertext),
-		Nonce:      string(encValue.Nonce),
-	})
-
-	cfg := config.Config{
-		PORT:                  "8082",
-		DB_URL:                testDBURL,
-		JWT_SECRET:            testJWTSecret,
-		ENCRYPTION_KEY:        testEncryptionKey,
-		APP_BASE_URL:          "http://localhost:8082",
-		UPSTREAM_PROVIDER_URL: mockUpstream.URL,
-		Address:               ":8082",
-	}
-
-	srv := server.New(cfg)
-	defer func() { _ = srv.Close(ctx) }()
-
-	testProxyServer := httptest.NewServer(srv.Handler())
-	defer testProxyServer.Close()
-
-	token, _ := auth.GenerateToken(userID, teamID, testJWTSecret, 1*time.Hour)
-
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 100,
-		},
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		req, _ := http.NewRequest(http.MethodPost, testProxyServer.URL+"/api/v1/proxy", bytes.NewBuffer([]byte(`{"messages":[]}`)))
-		req.Header.Set("Authorization", "Bearer "+token)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			b.Fatalf("request failed: %v", err)
+	call := func(method, path string, body any, out any) int {
+		var buf bytes.Buffer
+		if body != nil {
+			require.NoError(t, json.NewEncoder(&buf).Encode(body))
 		}
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			b.Fatalf("bad status: %d %s", resp.StatusCode, string(body))
-		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		req, err := http.NewRequest(method, ts.URL+path, &buf)
+		require.NoError(t, err)
+		req.Header.Set("X-Mako-Token", login.Token)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.NoError(t, json.NewDecoder(res.Body).Decode(out))
+		return res.StatusCode
 	}
+
+	// Sync
+	sessionID := uuid.New().String()
+	transcript := `{"type":"user","message":{"content":"hello"}}` + "\n"
+	var synced models.ChatSyncResponse
+	status := call(http.MethodPost, "/api/v1/chats/sync", models.ChatSyncRequest{Sessions: []models.ChatSessionPayload{{
+		SessionID: sessionID, ProjectPath: "/tmp/project", Title: "hello", Transcript: transcript, MessageCount: 1,
+	}}}, &synced)
+	require.Equal(t, http.StatusOK, status, synced.Message)
+
+	// List
+	var list models.ChatListResponse
+	require.Equal(t, http.StatusOK, call(http.MethodGet, "/api/v1/chats", nil, &list))
+	found := false
+	for _, s := range list.Sessions {
+		if s.SessionID == sessionID {
+			found = true
+			assert.True(t, s.Mine)
+			assert.Equal(t, "/tmp/project", s.ProjectPath)
+		}
+	}
+	assert.True(t, found, "synced session should be listed")
+
+	// Get
+	var got models.ChatGetResponse
+	require.Equal(t, http.StatusOK, call(http.MethodGet, "/api/v1/chats/"+sessionID, nil, &got))
+	assert.Equal(t, transcript, got.Session.Transcript)
 }

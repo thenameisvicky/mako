@@ -92,9 +92,6 @@ func (c *Client) Get(sessionID string) (*models.ChatSessionPayload, error) {
 }
 
 // do sends a request carrying the Mako token and decodes the JSON response.
-//
-// The token goes in X-Mako-Token rather than Authorization: the proxy
-// reserves Authorization for the caller's own provider credential.
 func (c *Client) do(req *http.Request, out interface{}) error {
 	req.Header.Set("X-Mako-Token", c.token)
 

@@ -28,12 +28,6 @@ const (
 	EmailKey = "email"
 	TokenKey = "token"
 
-	// ProviderKeyKey stores the user's OWN upstream provider API key.
-	//
-	// Mako does not swap credentials, so this key belongs to the user and is
-	// forwarded to the provider untouched. It never reaches the proxy.
-	ProviderKeyKey = "provider_key"
-
 	// probeKey is read to decide whether a Secret Service is reachable. It is
 	// never written, so the probe cannot disturb anything already stored.
 	probeKey = "__backend_probe__"
@@ -236,29 +230,10 @@ func Exists() bool {
 // Delete clears every stored credential, ignoring entries that are already gone
 func Delete() error {
 	s := backend()
-	for _, key := range []string{EmailKey, TokenKey, ProviderKeyKey} {
+	for _, key := range []string{EmailKey, TokenKey} {
 		if err := s.remove(key); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 			return err
 		}
-	}
-	return nil
-}
-
-// SaveProviderKey stores the user's own provider API key
-func SaveProviderKey(apiKey string) error {
-	if err := backend().set(ProviderKeyKey, apiKey); err != nil {
-		return fmt.Errorf("unable to store the provider key: %w", err)
-	}
-	return nil
-}
-
-// LoadProviderKey reads the user's own provider API key
-func LoadProviderKey() (string, error) { return backend().get(ProviderKeyKey) }
-
-// DeleteProviderKey removes the stored provider API key, ignoring a missing one
-func DeleteProviderKey() error {
-	if err := backend().remove(ProviderKeyKey); err != nil && !errors.Is(err, keyring.ErrNotFound) {
-		return err
 	}
 	return nil
 }

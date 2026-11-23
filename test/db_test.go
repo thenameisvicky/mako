@@ -19,7 +19,6 @@ func TestStorageCRUD(t *testing.T) {
 
 	teamID := uuid.New().String()
 	userID := uuid.New().String()
-	credID := uuid.New().String()
 
 	// 1. Create a Team
 	team := &storage.Team{
@@ -52,43 +51,4 @@ func TestStorageCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fetchedTeam)
 	assert.Equal(t, "Test Team", fetchedTeam.Name)
-
-	// 5. Create Credential
-	cred := &storage.Credential{
-		ID:         credID,
-		UserID:     userID,
-		TeamID:     teamID,
-		Provider:   "anthropic",
-		Ciphertext: "encrypted_token",
-		Nonce:      "some_nonce",
-	}
-	err = s.CreateCredential(ctx, cred)
-	require.NoError(t, err)
-
-	// 6. Get Credential
-	fetchedCred, err := s.GetCredential(ctx, userID, "anthropic")
-	require.NoError(t, err)
-	require.NotNil(t, fetchedCred)
-	assert.Equal(t, "encrypted_token", fetchedCred.Ciphertext)
-
-	// 7. Update Credential
-	fetchedCred.Ciphertext = "updated_encrypted_token"
-	fetchedCred.Nonce = "updated_nonce"
-	err = s.UpdateCredential(ctx, fetchedCred)
-	require.NoError(t, err)
-
-	// Verify update
-	fetchedCred2, err := s.GetCredential(ctx, userID, "anthropic")
-	require.NoError(t, err)
-	require.NotNil(t, fetchedCred2)
-	assert.Equal(t, "updated_encrypted_token", fetchedCred2.Ciphertext)
-
-	// 8. Soft Delete Credential
-	err = s.DeleteRowData(ctx, "credentials", credID)
-	require.NoError(t, err)
-
-	// Verify soft delete
-	deletedCred, err := s.GetCredential(ctx, userID, "anthropic")
-	require.NoError(t, err)
-	assert.Nil(t, deletedCred)
 }

@@ -9,13 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Renamed to Mako.** The product is the `mako` CLI and the `mako-proxy` server; Tokenly is the organisation that builds it. The server entrypoint moved from `cmd/gateway` to `cmd/mako-proxy`, and the Go module is now `github.com/thenameisvicky/tokenly-mako`, matching the repository.
-- **Dashboard redesign**: the web dashboard uses the Tokenly landing page's light theme in a single plain stylesheet (Tailwind removed). Shared sessions are now the home page (`/`); usage moved to `/usage`, and `/chats` was removed.
+- **Dashboard redesign**: the web dashboard uses the Tokenly landing page's light theme in a single plain stylesheet (Tailwind removed). Shared sessions are the home page (`/`).
+- `/api/v1/me` moved into the auth package; `/health` no longer reports latency percentiles.
+
+### Removed
+- **Everything except chat sync.** Mako is now login plus Claude Code session sharing:
+  - Request proxying to Anthropic (`/api/v1/proxy`, `/api/v1/messages`), the `/claude` and `/set-provider-key` commands, and `UPSTREAM_PROVIDER_URL`.
+  - Team policy, token budgets and usage recording (`/api/v1/policy`, `/api/v1/budget`, `/api/v1/usage`), and the dashboard's Usage, Policy and Budget pages.
+  - Latency telemetry, the unused provider-credential storage and cache, and empty placeholder packages.
+  - Migrations `003_policy_and_budget.sql` and `005_governance_uniqueness.sql`. Existing databases keep the `policies`, `budgets` and `usage_records` tables; drop them manually if you no longer need them.
 
 ### Breaking
 - Auth header `X-Tokenly-Token` → `X-Mako-Token`. Update the CLI and the proxy together.
 - Environment variables: `TOKENLY_GATEWAY_URL` → `MAKO_PROXY_URL`, `TOKENLY_CREDENTIALS_BACKEND` → `MAKO_CREDENTIALS_BACKEND`, `TOKENLY_CREDENTIALS_FILE` → `MAKO_CREDENTIALS_FILE`, `NEXT_PUBLIC_GATEWAY_URL` → `NEXT_PUBLIC_MAKO_PROXY_URL`.
 - CLI flag `--gateway` → `--proxy`.
-- Credentials move from keychain service `tokenly` (and `~/.tokenly/credentials.json`) to `mako` (and `~/.mako/credentials.json`). Run `/login` and `/set-provider-key` again after upgrading.
+- `UPSTREAM_PROVIDER_URL` is no longer read; remove it from your environment.
+- Credentials move from keychain service `tokenly` (and `~/.tokenly/credentials.json`) to `mako` (and `~/.mako/credentials.json`). Run `/login` again after upgrading.
 
 ## [v0.4.0] - 03-09-2026
 

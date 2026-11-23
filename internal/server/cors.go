@@ -78,8 +78,8 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 			if origin != "" {
 				if permitted(origin) {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
-					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Mako-Token, Authorization, x-api-key, X-Provider")
+					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Mako-Token, Authorization")
 					w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID")
 					w.Header().Set("Access-Control-Max-Age", "600")
 					// Responses differ by Origin, so caches must not share them.

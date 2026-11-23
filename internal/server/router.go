@@ -5,21 +5,13 @@ import (
 
 	"github.com/thenameisvicky/tokenly-mako/internal/auth"
 	"github.com/thenameisvicky/tokenly-mako/internal/chats"
-	"github.com/thenameisvicky/tokenly-mako/internal/governance"
-	"github.com/thenameisvicky/tokenly-mako/internal/proxy"
-	"github.com/thenameisvicky/tokenly-mako/internal/telemetry"
 )
 
 // Handlers bundles every modular handler the router needs to register.
 type Handlers struct {
-	Auth       *auth.AuthHandler
-	Chats      *chats.Handler
-	Governance *governance.Handler
-	Proxy      *proxy.ProxyHandler
-	Telemetry  *telemetry.TelemetryHandler
-
+	Auth           *auth.AuthHandler
+	Chats          *chats.Handler
 	Middleware     *auth.Middleware
-	Tracker        *telemetry.LatencyTracker
 	AllowedOrigins []string
 }
 
@@ -27,14 +19,20 @@ type Handlers struct {
 func NewRouter(h Handlers) http.Handler {
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/api/v1/health", handleHealth)
+
 	// Each package owns its own paths and method matching.
 	auth.RegisterRoutes(mux, h.Auth)
-	telemetry.RegisterRoutes(mux, h.Telemetry)
-	proxy.RegisterRoutes(mux, h.Proxy, h.Middleware)
+	mux.Handle("/api/v1/me", h.Middleware.Authenticate(http.HandlerFunc(h.Auth.HandleMe)))
 	chats.RegisterRoutes(mux, h.Chats, h.Middleware.Authenticate)
-	governance.RegisterRoutes(mux, h.Governance, h.Middleware.Authenticate)
 
 	// Outermost first: CORS answers preflight before anything else runs, and
-	// logging measures every request that gets past it.
-	return CORSMiddleware(h.AllowedOrigins)(LoggingMiddleware(h.Tracker)(mux))
+	// logging records every request that gets past it.
+	return CORSMiddleware(h.AllowedOrigins)(LoggingMiddleware()(mux))
+}
+
+func handleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"OK"}`))
 }

@@ -43,7 +43,7 @@ export default function LoginPage() {
       <div className="card">
         <div className="logo" style={{ marginBottom: 24 }}>
           <span className="logo-mark" />
-          Mako <span className="logo-by">by Tokenly</span>
+          Mako
         </div>
         <h1 style={{ fontSize: 22 }}>{isCreate ? "Create your account" : "Sign in"}</h1>
         <p className="muted small" style={{ margin: "6px 0 24px" }}>

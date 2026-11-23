@@ -50,22 +50,6 @@ export function Notice({ ok, children }: { ok?: boolean; children: ReactNode }) 
 
 export const Spinner = () => <div className="spinner" role="status" aria-label="Loading" />;
 
-/** Thin progress bar; an unset or zero limit renders empty rather than implying a cap. */
-export function Meter({ used, limit }: { used: number; limit: number }) {
-  const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
-  return (
-    <div className="stack" style={{ gap: 8 }}>
-      <div className="meter" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
-        <span style={{ width: `${pct}%` }} />
-      </div>
-      <div className="row small muted" style={{ justifyContent: "space-between" }}>
-        <span>{used.toLocaleString()} tokens</span>
-        <span>{limit > 0 ? `${Math.round(pct)}% of ${limit.toLocaleString()}` : "No limit"}</span>
-      </div>
-    </div>
-  );
-}
-
 export function ago(iso: string) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return "just now";

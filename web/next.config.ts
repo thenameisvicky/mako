@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // Without it Next walks up, finds other lockfiles, and warns about an
   // ambiguous workspace root.
   outputFileTracingRoot: __dirname,
+  // Hide the floating Next.js badge shown in development.
+  devIndicators: false,
 };
 
 export default nextConfig;

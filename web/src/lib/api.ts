@@ -1,13 +1,5 @@
 import { clearSession, getToken } from "./auth";
-import type {
-  Budget,
-  ChatSession,
-  ChatTranscript,
-  Health,
-  Me,
-  Policy,
-  UsageResponse,
-} from "./types";
+import type { ChatSession, ChatTranscript, Me } from "./types";
 
 // The Mako proxy the dashboard reads from.
 export const PROXY_URL =
@@ -103,24 +95,6 @@ export const api = {
     }),
 
   me: () => request<{ me: Me }>("/api/v1/me").then((r) => r.me),
-
-  health: () => request<Health>("/api/v1/health", { auth: false }),
-
-  getPolicy: () => request<{ policy: Policy }>("/api/v1/policy").then((r) => r.policy),
-
-  savePolicy: (policy: Pick<Policy, "allowedModels" | "blockedModels" | "maxTokensPerRequest">) =>
-    request<{ policy: Policy }>("/api/v1/policy", { method: "PUT", body: policy }).then(
-      (r) => r.policy,
-    ),
-
-  getBudget: () => request<{ budget: Budget }>("/api/v1/budget").then((r) => r.budget),
-
-  saveBudget: (budget: Pick<Budget, "period" | "tokenLimit">) =>
-    request<{ budget: Budget }>("/api/v1/budget", { method: "PUT", body: budget }).then(
-      (r) => r.budget,
-    ),
-
-  usage: () => request<UsageResponse>("/api/v1/usage"),
 
   chats: () =>
     request<{ sessions: ChatSession[] }>("/api/v1/chats").then((r) => r.sessions ?? []),
