@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/auth"
-	"github.com/thenameisvicky/tokenly-gateway/internal/cache"
-	"github.com/thenameisvicky/tokenly-gateway/internal/storage"
+	"github.com/thenameisvicky/tokenly-mako/internal/auth"
+	"github.com/thenameisvicky/tokenly-mako/internal/cache"
+	"github.com/thenameisvicky/tokenly-mako/internal/storage"
 )
 
 func TestJWTGenerationAndVerification(t *testing.T) {

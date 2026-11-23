@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/auth"
+	"github.com/thenameisvicky/tokenly-mako/internal/auth"
 	"golang.org/x/term"
 )
 
@@ -225,7 +225,7 @@ func (s *Shell) Run() error {
 			if strings.HasPrefix(cmdName, "/") {
 				fmt.Printf("\n%s%s%s %sUnknown command %s%s%s. Run %s/help%s to see what's available.%s\n\n", colorRed, symbolError, colorReset, colorDim, colorReset, cmdName, colorDim, colorGreen, colorDim, colorReset)
 			} else {
-				fmt.Printf("\n  %sTokenly runs on slash commands. Try %s/help%s to get started.%s\n\n", colorDim, colorGreen, colorDim, colorReset)
+				fmt.Printf("\n  %sMako runs on slash commands. Try %s/help%s to get started.%s\n\n", colorDim, colorGreen, colorDim, colorReset)
 			}
 		}
 	}
@@ -291,8 +291,8 @@ func (r *Renderer) PrintWelcomeBox(hasCredentials bool) {
 		innerWidth = 24
 	}
 
-	accountRaw := "  Not signed in — run /init to configure credentials"
-	accountColored := "  " + colorDim + "Not signed in — run " + colorReset + colorGreen + "/init" + colorReset + colorDim + " to configure credentials" + colorReset
+	accountRaw := "  Not signed in — run /login to configure credentials"
+	accountColored := "  " + colorDim + "Not signed in — run " + colorReset + colorGreen + "/login" + colorReset + colorDim + " to configure credentials" + colorReset
 	if hasCredentials {
 		if u := auth.GetUsername(); u != "" {
 			accountRaw = "  Signed in as " + u
@@ -308,8 +308,8 @@ func (r *Renderer) PrintWelcomeBox(hasCredentials bool) {
 			accountRaw = "  Signed in"
 			accountColored = "  " + colorDim + "Signed in" + colorReset
 		} else {
-			accountRaw = "  Not signed in — run /init"
-			accountColored = "  " + colorDim + "Not signed in — run " + colorReset + colorGreen + "/init" + colorReset
+			accountRaw = "  Not signed in — run /login"
+			accountColored = "  " + colorDim + "Not signed in — run " + colorReset + colorGreen + "/login" + colorReset
 			if visualWidth(accountRaw) > innerWidth {
 				accountRaw = "  Not signed in"
 				accountColored = "  " + colorDim + "Not signed in" + colorReset

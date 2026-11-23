@@ -7,13 +7,17 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/auth"
-	"github.com/thenameisvicky/tokenly-gateway/internal/cache"
-	"github.com/thenameisvicky/tokenly-gateway/internal/config"
-	"github.com/thenameisvicky/tokenly-gateway/internal/encryption"
-	"github.com/thenameisvicky/tokenly-gateway/internal/proxy"
-	"github.com/thenameisvicky/tokenly-gateway/internal/storage"
-	"github.com/thenameisvicky/tokenly-gateway/internal/telemetry"
+	"github.com/thenameisvicky/tokenly-mako/internal/auth"
+	"github.com/thenameisvicky/tokenly-mako/internal/budget"
+	"github.com/thenameisvicky/tokenly-mako/internal/cache"
+	"github.com/thenameisvicky/tokenly-mako/internal/chats"
+	"github.com/thenameisvicky/tokenly-mako/internal/config"
+	"github.com/thenameisvicky/tokenly-mako/internal/encryption"
+	"github.com/thenameisvicky/tokenly-mako/internal/governance"
+	"github.com/thenameisvicky/tokenly-mako/internal/policy"
+	"github.com/thenameisvicky/tokenly-mako/internal/proxy"
+	"github.com/thenameisvicky/tokenly-mako/internal/storage"
+	"github.com/thenameisvicky/tokenly-mako/internal/telemetry"
 )
 
 type Server struct {
@@ -23,6 +27,8 @@ type Server struct {
 	cache      *cache.Cache
 	encryptor  *encryption.Encryptor
 	tracker    *telemetry.LatencyTracker
+	policy     *policy.Engine
+	budget     *budget.Tracker
 }
 
 // New initializes and wires up the dependencies for the server
@@ -45,22 +51,32 @@ func New(cfg config.Config) *Server {
 	// Initialize Latency Tracker
 	tracker := telemetry.NewLatencyTracker(10000)
 
+	// Initialize hot-path governance: policy and token budgeting both read from
+	// their own in-process caches, so a warm request touches no database.
+	policyEngine := policy.NewEngine(store, 5*time.Minute)
+	budgetTracker := budget.NewTracker(store, 5*time.Minute, 4096)
+
 	s := &Server{
 		config:    cfg,
 		storage:   store,
 		cache:     c,
 		encryptor: enc,
 		tracker:   tracker,
+		policy:    policyEngine,
+		budget:    budgetTracker,
 	}
 
 	// Instantiate modular handlers and middlewares
-	authHandler := auth.NewAuthHandler(store, cfg.JWT_SECRET)
-	authMiddleware := auth.NewMiddleware(cfg.JWT_SECRET, store, c)
-	telemetryHandler := telemetry.NewTelemetryHandler(tracker)
-	proxyHandler := proxy.NewProxyHandler(store, c, enc, cfg.UPSTREAM_PROVIDER_URL)
-
-	// Build the main router containing all routes
-	router := NewRouter(authHandler, authMiddleware, telemetryHandler, proxyHandler, tracker)
+	router := NewRouter(Handlers{
+		Auth:           auth.NewAuthHandler(store, cfg.JWT_SECRET, enc),
+		Chats:          chats.NewHandler(store, enc),
+		Governance:     governance.NewHandler(store, enc, policyEngine),
+		Proxy:          proxy.NewProxyHandler(policyEngine, budgetTracker, cfg.UPSTREAM_PROVIDER_URL),
+		Telemetry:      telemetry.NewTelemetryHandler(tracker),
+		Middleware:     auth.NewMiddleware(cfg.JWT_SECRET, store, c),
+		Tracker:        tracker,
+		AllowedOrigins: cfg.CORS_ALLOWED_ORIGINS,
+	})
 
 	s.httpServer = &http.Server{
 		Addr:    cfg.Address,
@@ -88,6 +104,10 @@ func (s *Server) Close(ctx context.Context) error {
 	if s.httpServer != nil {
 		shutdownErr = s.httpServer.Shutdown(ctx)
 	}
+	// Stop background workers before the database goes away: the budget tracker
+	// flushes any queued usage records on close.
+	s.policy.Close()
+	s.budget.Close()
 	s.cache.Close()
 	if err := s.storage.Close(); err != nil && shutdownErr == nil {
 		shutdownErr = err

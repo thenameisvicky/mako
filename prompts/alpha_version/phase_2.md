@@ -1,8 +1,8 @@
-# Tokenly gateway - controlled implementation vibe coding plan phase 2
+# Mako proxy - controlled implementation vibe coding plan phase 2
 
 ## Context & Hard constraints
 
-- You are working on Tokenly gateway, a high speed gateway binary that swaps API key of the incoming request from tokenly-cli with the master API key stored in DB after checking quota, limit, team, usage in high speed. Minimize gateway overhead and avoid unnecessary database work on the hot path. Measure p50/p95/p99 latency
+- You are working on Mako proxy, a high speed proxy binary that swaps API key of the incoming request from mako with the master API key stored in DB after checking quota, limit, team, usage in high speed. Minimize proxy overhead and avoid unnecessary database work on the hot path. Measure p50/p95/p99 latency
 - The goal is to implement today's MVP incrementally and conservatively.
 - I do NOT want uncontrolled vibe coding.
 - Before making architectural changes, inspect the existing codebase and existing implementations. 
@@ -24,8 +24,8 @@
 
 ## High speed hot path optimizations
 
-- Hot path in tokenly is API key replacing and proxying.
-- There must not be > 1ms latency caused by tokenly-gateway. This is the metric measured in telementry
+- Hot path in mako is API key replacing and proxying.
+- There must not be > 1ms latency caused by mako-proxy. This is the metric measured in telementry
 - Hot path only reads from cache (In-Memory).
 - If the credential/quota is not in the cache (a Cache Miss), perform the DB lookup, save it to the cache, and then proceed. Once cached, subsequent requests will read in <0.01ms.
 - Database reads should be handled in the background (if needed) to avoid blocking the hot path.
@@ -33,7 +33,7 @@
 - Telementry saving in DB too must not be awaited here blocking the hot path. Save in background go routine or channel to be processed and saved later.
 - Hot path modules are cache, requestctx, proxy and middleware that wrap them.
 - Share the HTTP2 connection or what ever connection established with claude server across requests to reduce latency and overhead.
-- The path where claude CLI communucates with claude server via tokenly-gateway must not have any latency.
+- The path where claude CLI communucates with claude server via mako-proxy must not have any latency.
 - To minimize garbage collection spikes (which hurt p99 latency), reuse objects instead of creating new ones on every request.
 - The Solution: Use Go's sync.Pool for things like temporary buffers or custom structs:
 - "Configure a shared http.Client with a custom http.Transport setting MaxIdleConns and MaxIdleConnsPerHost to 100+ to ensure connections to the upstream host are pooled and kept alive."

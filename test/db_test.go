@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/storage"
+	"github.com/thenameisvicky/tokenly-mako/internal/storage"
 )
 
 func TestStorageCRUD(t *testing.T) {

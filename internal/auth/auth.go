@@ -29,7 +29,7 @@ func VerifyToken(tokenStr string, secret string) (string, string, error) {
 		}
 		return []byte(secret), nil
 	})
-	
+
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return "", "", ErrTokenExpired

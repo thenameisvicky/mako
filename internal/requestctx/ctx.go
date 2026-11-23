@@ -4,14 +4,19 @@ import (
 	"context"
 	"sync"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/storage"
+	"github.com/thenameisvicky/tokenly-mako/internal/storage"
 )
 
 type RequestState struct {
 	User      *storage.User
 	Provider  string
+	Model     string
 	CacheHit  bool
 	RequestID string
+
+	// Token counts observed on the response, used for logging and telemetry.
+	InputTokens  int
+	OutputTokens int
 }
 
 type contextKey string
@@ -36,8 +41,11 @@ func WithState(ctx context.Context) (context.Context, *RequestState) {
 func ReleaseState(state *RequestState) {
 	state.User = nil
 	state.Provider = ""
+	state.Model = ""
 	state.CacheHit = false
 	state.RequestID = ""
+	state.InputTokens = 0
+	state.OutputTokens = 0
 	statePool.Put(state)
 }
 

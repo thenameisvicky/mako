@@ -1,8 +1,8 @@
-# Tokenly gateway - controlled implementation vibe coding plan
+# Mako proxy - controlled implementation vibe coding plan
 
 ## Context & Hard constraints
 
-- You are working on Tokenly gateway, a high speed gateway binary that swaps API key of the incoming request from tokenly-cli with the master API key stored in DB after checking quota, limit, team, usage in high speed. Minimize gateway overhead and avoid unnecessary database work on the hot path. Measure p50/p95/p99 latency
+- You are working on Mako proxy, a high speed proxy binary that swaps API key of the incoming request from mako with the master API key stored in DB after checking quota, limit, team, usage in high speed. Minimize proxy overhead and avoid unnecessary database work on the hot path. Measure p50/p95/p99 latency
 - The goal is to implement today's MVP incrementally and conservatively.
 - I do NOT want uncontrolled vibe coding.
 - Before making architectural changes, inspect the existing codebase and existing implementations. 
@@ -18,7 +18,7 @@
 
 ## Middleware system mechanisim
 
-- Refer this - Documents/Personal/wAI/wAI-server-new project's middleware and implement same in Tokenly gateway
+- Refer this - Documents/Personal/wAI/wAI-server-new project's middleware and implement same in Mako proxy
 - All routes with prefix /api/v1/* except /api/v1/login, api/v1/health needs to be protected with middleware
 - Implement the middleware in auth/middleware.go
 - Translate the excat beheavior from Documents/Personal/wAI/wAI-server-new middleware from python to go and implement it here
@@ -158,7 +158,7 @@
         ↓
   3. temporary plaintext
 - The cache must never log credential contents.
-- Document that this cache is process-local and therefore does not synchronize between multiple Gateway instances.
+- Document that this cache is process-local and therefore does not synchronize between multiple Proxy instances.
 
 ## Request pipeline 
 
@@ -191,9 +191,9 @@
         ↓
    14. Anthropic
 - The provider credential should be injected only into the outbound provider request.
-- Do NOT mutate the incoming client request's Authorization header in a way that destroys the Tokenly JWT.
+- Do NOT mutate the incoming client request's Authorization header in a way that destroys the Mako token.
 - There are two different credentials:
-  1. Incoming: Authorization: Bearer <Tokenly JWT>
+  1. Incoming: Authorization: Bearer <Mako token>
   2. Outgoing: Authorization: Bearer <Anthropic API Key>
 - Keep those concepts separate.
 
@@ -210,7 +210,7 @@
   7. provider
   8. cache hit/miss
 - Never log:
-  1. Tokenly JWT
+  1. Mako token
   2. Anthropic API key
   3. ENCRYPTION_KEY
   4. JWT_SECRET

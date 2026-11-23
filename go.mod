@@ -1,4 +1,4 @@
-module github.com/thenameisvicky/tokenly-gateway
+module github.com/thenameisvicky/tokenly-mako
 
 go 1.26.5
 

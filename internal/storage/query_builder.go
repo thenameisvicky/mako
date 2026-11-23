@@ -14,6 +14,8 @@ type QueryBuilder struct {
 	whereArgs []interface{}
 	set       []string
 	setArgs   []interface{}
+	orderBy   string
+	limit     int
 }
 
 func NewQueryBuilder() *QueryBuilder {
@@ -65,6 +67,19 @@ func (qb *QueryBuilder) Where(column string, val interface{}) *QueryBuilder {
 	return qb
 }
 
+// OrderBy sets the sort clause. The caller supplies a literal fragment, so it
+// must never carry user input - only internal, hard-coded column names.
+func (qb *QueryBuilder) OrderBy(clause string) *QueryBuilder {
+	qb.orderBy = clause
+	return qb
+}
+
+// Limit caps the number of returned rows. Ignored when n <= 0.
+func (qb *QueryBuilder) Limit(n int) *QueryBuilder {
+	qb.limit = n
+	return qb
+}
+
 func (qb *QueryBuilder) Build() (string, []interface{}, error) {
 	switch qb.action {
 	case "SELECT":
@@ -84,6 +99,13 @@ func (qb *QueryBuilder) Build() (string, []interface{}, error) {
 			}
 			query.WriteString(strings.Join(conditions, " AND "))
 		}
+		if qb.orderBy != "" {
+			query.WriteString(" ORDER BY ")
+			query.WriteString(qb.orderBy)
+		}
+		if qb.limit > 0 {
+			query.WriteString(fmt.Sprintf(" LIMIT %d", qb.limit))
+		}
 		return query.String(), args, nil
 
 	case "INSERT":
@@ -93,7 +115,7 @@ func (qb *QueryBuilder) Build() (string, []interface{}, error) {
 		query.WriteString(" (")
 		query.WriteString(strings.Join(qb.columns, ", "))
 		query.WriteString(") VALUES (")
-		
+
 		var placeholders []string
 		for i := 1; i <= len(qb.values); i++ {
 			placeholders = append(placeholders, fmt.Sprintf("$%d", i))

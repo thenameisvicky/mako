@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/encryption"
+	"github.com/thenameisvicky/tokenly-mako/internal/encryption"
 )
 
 func TestEncryptDecrypt(t *testing.T) {
 	// Base64 encoded 32-byte key
-	key := "lQZlZWbckfgey+Zmcoa4lQ1epLALwHomyLNGCIJPPIo="
+	key := "I2QRtnVxxxy57fKK8UiFFxvh5XCuIy1bekqplo3NX3M="
 
 	encryptor, err := encryption.New(key)
 	require.NoError(t, err)

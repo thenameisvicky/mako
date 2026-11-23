@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/config"
-	"github.com/thenameisvicky/tokenly-gateway/internal/server"
+	"github.com/thenameisvicky/tokenly-mako/internal/config"
+	"github.com/thenameisvicky/tokenly-mako/internal/server"
 )
 
 func main() {
@@ -23,9 +23,9 @@ func main() {
 	signal.Notify(shutdownSig, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		log.Printf("Gateway listening on %s", config.Address)
+		log.Printf("Proxy listening on %s", config.Address)
 		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Gateway start failed: %v", err)
+			log.Fatalf("Proxy start failed: %v", err)
 		}
 	}()
 
@@ -38,6 +38,6 @@ func main() {
 	if err := srv.Close(ctx); err != nil {
 		log.Printf("Graceful shutdown failed: %v", err)
 	} else {
-		log.Println("Gateway shutdown completed gracefully")
+		log.Println("Proxy shutdown completed gracefully")
 	}
 }

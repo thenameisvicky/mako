@@ -16,7 +16,8 @@ Only the latest release is actively supported for security updates.
 **Please do not report security vulnerabilities via public GitHub issues.**
 
 If you discover a vulnerability:
-1. Email a detailed report directly to the maintainers at **vigneshbalasubramaniyan3@gmail.com**.
+
+1. Email a detailed report directly to the maintainers at **<security@tokenly.in>**.
 2. Include the following details in your report:
    - A description of the vulnerability and its potential impact.
    - Step-by-step instructions (or a proof-of-concept script) to reproduce the issue.

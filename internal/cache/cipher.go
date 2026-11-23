@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/storage"
+	"github.com/thenameisvicky/tokenly-mako/internal/storage"
 )
 
 type credEntry struct {
@@ -19,8 +19,8 @@ type userEntry struct {
 
 // Cache is a thread-safe, process-local in-memory cache with TTL.
 //
-// NOTE: This cache is process-local. It runs inside the gateway process memory
-// and therefore does not synchronize across multiple Gateway instances.
+// NOTE: This cache is process-local. It runs inside the proxy process memory
+// and therefore does not synchronize across multiple Proxy instances.
 type Cache struct {
 	mu         sync.RWMutex
 	creds      map[string]credEntry

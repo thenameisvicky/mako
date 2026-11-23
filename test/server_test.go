@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/auth"
-	"github.com/thenameisvicky/tokenly-gateway/internal/config"
-	"github.com/thenameisvicky/tokenly-gateway/internal/encryption"
-	"github.com/thenameisvicky/tokenly-gateway/internal/server"
-	"github.com/thenameisvicky/tokenly-gateway/internal/storage"
-	"github.com/thenameisvicky/tokenly-gateway/pkg/models"
+	"github.com/thenameisvicky/tokenly-mako/internal/auth"
+	"github.com/thenameisvicky/tokenly-mako/internal/config"
+	"github.com/thenameisvicky/tokenly-mako/internal/encryption"
+	"github.com/thenameisvicky/tokenly-mako/internal/server"
+	"github.com/thenameisvicky/tokenly-mako/internal/storage"
+	"github.com/thenameisvicky/tokenly-mako/pkg/models"
 )
 
 func TestFullServerPipeline(t *testing.T) {
@@ -81,7 +81,7 @@ func TestFullServerPipeline(t *testing.T) {
 		Nonce:      string(encValue.Nonce),
 	})
 
-	// 3. Initialize Gateway Server pointing to mock upstream
+	// 3. Initialize Proxy Server pointing to mock upstream
 	cfg := config.Config{
 		PORT:                  "8081",
 		DB_URL:                testDBURL,
@@ -93,11 +93,11 @@ func TestFullServerPipeline(t *testing.T) {
 	}
 
 	srv := server.New(cfg)
-	testGatewayServer := httptest.NewServer(srv.Handler())
-	defer testGatewayServer.Close()
+	testProxyServer := httptest.NewServer(srv.Handler())
+	defer testProxyServer.Close()
 	defer func() { _ = srv.Close(ctx) }()
 
-	// 4. Test login to get a Tokenly JWT
+	// 4. Test login to get a Mako token
 	dbUser, err := db.GetUserByID(ctx, userID)
 	require.NoError(t, err)
 	require.NotNil(t, dbUser)
@@ -107,7 +107,7 @@ func TestFullServerPipeline(t *testing.T) {
 		"password": "mypassword",
 	})
 
-	resp, err := http.Post(testGatewayServer.URL+"/api/v1/login", "application/json", bytes.NewBuffer(loginPayload))
+	resp, err := http.Post(testProxyServer.URL+"/api/v1/login", "application/json", bytes.NewBuffer(loginPayload))
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -122,13 +122,13 @@ func TestFullServerPipeline(t *testing.T) {
 	token := loginResp.Token
 
 	// 5. Query /health to check if tracker works
-	healthResp, err := http.Get(testGatewayServer.URL + "/health")
+	healthResp, err := http.Get(testProxyServer.URL + "/health")
 	require.NoError(t, err)
 	defer healthResp.Body.Close()
 	assert.Equal(t, http.StatusOK, healthResp.StatusCode)
 
-	// 6. Access proxy endpoint using Tokenly JWT
-	req, err := http.NewRequest(http.MethodPost, testGatewayServer.URL+"/api/v1/proxy", bytes.NewBuffer([]byte(`{"messages":[]}`)))
+	// 6. Access proxy endpoint using Mako token
+	req, err := http.NewRequest(http.MethodPost, testProxyServer.URL+"/api/v1/proxy", bytes.NewBuffer([]byte(`{"messages":[]}`)))
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer "+token)
 
@@ -204,8 +204,8 @@ func BenchmarkProxyPipeline(b *testing.B) {
 	srv := server.New(cfg)
 	defer func() { _ = srv.Close(ctx) }()
 
-	testGatewayServer := httptest.NewServer(srv.Handler())
-	defer testGatewayServer.Close()
+	testProxyServer := httptest.NewServer(srv.Handler())
+	defer testProxyServer.Close()
 
 	token, _ := auth.GenerateToken(userID, teamID, testJWTSecret, 1*time.Hour)
 
@@ -219,7 +219,7 @@ func BenchmarkProxyPipeline(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req, _ := http.NewRequest(http.MethodPost, testGatewayServer.URL+"/api/v1/proxy", bytes.NewBuffer([]byte(`{"messages":[]}`)))
+		req, _ := http.NewRequest(http.MethodPost, testProxyServer.URL+"/api/v1/proxy", bytes.NewBuffer([]byte(`{"messages":[]}`)))
 		req.Header.Set("Authorization", "Bearer "+token)
 
 		resp, err := client.Do(req)

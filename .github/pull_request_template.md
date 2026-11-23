@@ -2,7 +2,7 @@
 
 <!-- 
 PR Title Format: [TYPE] [PR-XXX] Short Description
-Example: [FEAT] [PR-001] Merge CLI and Gateway into monorepo
+Example: [FEAT] [PR-001] Merge CLI and Proxy into monorepo
 Types: FEAT, REF, FIX, CHORE
 -->
 
@@ -41,7 +41,7 @@ Provide details of the verification steps performed.
 *Include test command and whether it succeeded (e.g. `go test ./...`).*
 
 ### 2. Compilation Verification
-*List built binaries and their paths (e.g. `go build -o bin/gateway ./cmd/gateway`).*
+*List built binaries and their paths (e.g. `go build -o bin/mako-proxy ./cmd/mako-proxy`).*
 
 ### 3. Manual Testing / Scenario Verifications
 *Detail manual checks, API responses, or command executions tested.*

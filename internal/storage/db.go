@@ -20,6 +20,7 @@ type Team struct {
 type User struct {
 	ID            string    `json:"id"`
 	Username      string    `json:"username"`
+	UsernameBidx  string    `json:"-"` // deterministic blind index for encrypted lookups
 	Email         string    `json:"email"`
 	Password      string    `json:"-"` // hashed password
 	TeamID        string    `json:"team_id"`
@@ -73,7 +74,7 @@ func (s *Storage) Close() error {
 // GetUserByID retrieves a user by ID if active
 func (s *Storage) GetUserByID(ctx context.Context, id string) (*User, error) {
 	qb := NewQueryBuilder().
-		Select("id", "username", "email", "password", "team_id", "role", "is_active", "flag_use_status", "created_at", "updated_at").
+		Select("id", "username", "username_bidx", "email", "password", "team_id", "role", "is_active", "flag_use_status", "created_at", "updated_at").
 		From("users").
 		Where("id", id).
 		Where("flag_use_status", 1)
@@ -84,23 +85,13 @@ func (s *Storage) GetUserByID(ctx context.Context, id string) (*User, error) {
 	}
 
 	// SQL: SELECT id, username, email, password, team_id, role, is_active, flag_use_status, created_at, updated_at FROM users WHERE id = $1 AND flag_use_status = $2
-	row := s.db.QueryRowContext(ctx, query, args...)
-
-	var u User
-	err = row.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.TeamID, &u.Role, &u.IsActive, &u.FlagUseStatus, &u.CreatedAt, &u.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan user: %w", err)
-	}
-	return &u, nil
+	return scanUser(s.db.QueryRowContext(ctx, query, args...))
 }
 
 // GetUserByUsername retrieves a user by username
 func (s *Storage) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	qb := NewQueryBuilder().
-		Select("id", "username", "email", "password", "team_id", "role", "is_active", "flag_use_status", "created_at", "updated_at").
+		Select("id", "username", "username_bidx", "email", "password", "team_id", "role", "is_active", "flag_use_status", "created_at", "updated_at").
 		From("users").
 		Where("username", username).
 		Where("flag_use_status", 1)
@@ -111,17 +102,7 @@ func (s *Storage) GetUserByUsername(ctx context.Context, username string) (*User
 	}
 
 	// SQL: SELECT id, username, email, password, team_id, role, is_active, flag_use_status, created_at, updated_at FROM users WHERE username = $1 AND flag_use_status = $2
-	row := s.db.QueryRowContext(ctx, query, args...)
-
-	var u User
-	err = row.Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.TeamID, &u.Role, &u.IsActive, &u.FlagUseStatus, &u.CreatedAt, &u.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan user by username: %w", err)
-	}
-	return &u, nil
+	return scanUser(s.db.QueryRowContext(ctx, query, args...))
 }
 
 // GetCredential retrieves a credential by userID and provider
@@ -159,18 +140,26 @@ func (s *Storage) CreateCredential(ctx context.Context, cred *Credential) error 
 	cred.UpdatedAt = now
 	cred.FlagUseStatus = 1
 
+	cols := []string{"user_id", "team_id", "provider", "ciphertext", "nonce", "flag_use_status", "created_at", "updated_at"}
+	vals := []interface{}{cred.UserID, cred.TeamID, cred.Provider, cred.Ciphertext, cred.Nonce, cred.FlagUseStatus, cred.CreatedAt, cred.UpdatedAt}
+
+	if cred.ID != "" {
+		cols = append([]string{"id"}, cols...)
+		vals = append([]interface{}{cred.ID}, vals...)
+	}
+
 	qb := NewQueryBuilder().
 		InsertInto("credentials").
-		Columns("id", "user_id", "team_id", "provider", "ciphertext", "nonce", "flag_use_status", "created_at", "updated_at").
-		Values(cred.ID, cred.UserID, cred.TeamID, cred.Provider, cred.Ciphertext, cred.Nonce, cred.FlagUseStatus, cred.CreatedAt, cred.UpdatedAt)
+		Columns(cols...).
+		Values(vals...)
 
 	query, args, err := qb.Build()
 	if err != nil {
 		return err
 	}
 
-	// SQL: INSERT INTO credentials (id, user_id, team_id, provider, ciphertext, nonce, flag_use_status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	_, err = s.db.ExecContext(ctx, query, args...)
+	query += " RETURNING id"
+	err = s.db.QueryRowContext(ctx, query, args...).Scan(&cred.ID)
 	if err != nil {
 		return fmt.Errorf("failed to create credential: %w", err)
 	}
@@ -276,6 +265,32 @@ func (s *Storage) DeleteRowData(ctx context.Context, tableName string, id string
 	return nil
 }
 
+// GetTeamByID retrieves a team by its ID
+func (s *Storage) GetTeamByID(ctx context.Context, id string) (*Team, error) {
+	qb := NewQueryBuilder().
+		Select("id", "name", "flag_use_status", "created_at", "updated_at").
+		From("teams").
+		Where("id", id).
+		Where("flag_use_status", 1)
+
+	query, args, err := qb.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	row := s.db.QueryRowContext(ctx, query, args...)
+
+	var t Team
+	err = row.Scan(&t.ID, &t.Name, &t.FlagUseStatus, &t.CreatedAt, &t.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan team by ID: %w", err)
+	}
+	return &t, nil
+}
+
 // CreateTeam helper to register team (useful for seeding/auth testing)
 func (s *Storage) CreateTeam(ctx context.Context, team *Team) error {
 	now := time.Now()
@@ -283,18 +298,26 @@ func (s *Storage) CreateTeam(ctx context.Context, team *Team) error {
 	team.UpdatedAt = now
 	team.FlagUseStatus = 1
 
+	cols := []string{"name", "flag_use_status", "created_at", "updated_at"}
+	vals := []interface{}{team.Name, team.FlagUseStatus, team.CreatedAt, team.UpdatedAt}
+
+	if team.ID != "" {
+		cols = append([]string{"id"}, cols...)
+		vals = append([]interface{}{team.ID}, vals...)
+	}
+
 	qb := NewQueryBuilder().
 		InsertInto("teams").
-		Columns("id", "name", "flag_use_status", "created_at", "updated_at").
-		Values(team.ID, team.Name, team.FlagUseStatus, team.CreatedAt, team.UpdatedAt)
+		Columns(cols...).
+		Values(vals...)
 
 	query, args, err := qb.Build()
 	if err != nil {
 		return err
 	}
 
-	// SQL: INSERT INTO teams (id, name, flag_use_status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)
-	_, err = s.db.ExecContext(ctx, query, args...)
+	query += " RETURNING id"
+	err = s.db.QueryRowContext(ctx, query, args...).Scan(&team.ID)
 	if err != nil {
 		return fmt.Errorf("failed to create team: %w", err)
 	}
@@ -309,20 +332,135 @@ func (s *Storage) CreateUser(ctx context.Context, u *User) error {
 	u.FlagUseStatus = 1
 	u.IsActive = true
 
+	cols := []string{"username", "username_bidx", "email", "password", "team_id", "role", "is_active", "flag_use_status", "created_at", "updated_at"}
+	vals := []interface{}{u.Username, u.UsernameBidx, u.Email, u.Password, u.TeamID, u.Role, u.IsActive, u.FlagUseStatus, u.CreatedAt, u.UpdatedAt}
+
+	if u.ID != "" {
+		cols = append([]string{"id"}, cols...)
+		vals = append([]interface{}{u.ID}, vals...)
+	}
+
 	qb := NewQueryBuilder().
 		InsertInto("users").
-		Columns("id", "username", "email", "password", "team_id", "role", "is_active", "flag_use_status", "created_at", "updated_at").
-		Values(u.ID, u.Username, u.Email, u.Password, u.TeamID, u.Role, u.IsActive, u.FlagUseStatus, u.CreatedAt, u.UpdatedAt)
+		Columns(cols...).
+		Values(vals...)
 
 	query, args, err := qb.Build()
 	if err != nil {
 		return err
 	}
 
-	// SQL: INSERT INTO users (id, username, email, password, team_id, role, is_active, flag_use_status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	_, err = s.db.ExecContext(ctx, query, args...)
+	query += " RETURNING id"
+	err = s.db.QueryRowContext(ctx, query, args...).Scan(&u.ID)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 	return nil
+}
+
+// --- Encrypted identity ------------------------------------------------------
+
+// GetUserByUsernameBidx retrieves a user by the blind index of their username.
+//
+// Usernames are AES-GCM encrypted, so they cannot be matched by equality; the
+// blind index is the deterministic HMAC the unique index is built on.
+func (s *Storage) GetUserByUsernameBidx(ctx context.Context, bidx string) (*User, error) {
+	qb := NewQueryBuilder().
+		Select("id", "username", "username_bidx", "email", "password", "team_id", "role", "is_active", "flag_use_status", "created_at", "updated_at").
+		From("users").
+		Where("username_bidx", bidx).
+		Where("flag_use_status", 1)
+
+	query, args, err := qb.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	// SQL: SELECT ... FROM users WHERE username_bidx = $1 AND flag_use_status = $2
+	return scanUser(s.db.QueryRowContext(ctx, query, args...))
+}
+
+// UpdateUserIdentity rewrites a user's encrypted identity columns in place.
+//
+// Used to migrate a legacy plaintext/bcrypt row to AES-GCM on the user's next
+// successful login, so no password reset or downtime is required.
+func (s *Storage) UpdateUserIdentity(ctx context.Context, u *User) error {
+	u.UpdatedAt = time.Now()
+
+	qb := NewQueryBuilder().
+		Update("users").
+		Set("username", u.Username).
+		Set("username_bidx", u.UsernameBidx).
+		Set("email", u.Email).
+		Set("password", u.Password).
+		Set("updated_at", u.UpdatedAt).
+		Where("id", u.ID).
+		Where("flag_use_status", 1)
+
+	query, args, err := qb.Build()
+	if err != nil {
+		return err
+	}
+
+	// SQL: UPDATE users SET username = $1, username_bidx = $2, ... WHERE id = $6 AND flag_use_status = $7
+	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("failed to update user identity: %w", err)
+	}
+	return nil
+}
+
+// scanUser reads a users row in the canonical column order
+func scanUser(row *sql.Row) (*User, error) {
+	var u User
+	var bidx sql.NullString
+	err := row.Scan(&u.ID, &u.Username, &bidx, &u.Email, &u.Password, &u.TeamID, &u.Role, &u.IsActive, &u.FlagUseStatus, &u.CreatedAt, &u.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan user: %w", err)
+	}
+	u.UsernameBidx = bidx.String
+	return &u, nil
+}
+
+// CreateTeamWithUser creates a team and its first user atomically.
+//
+// The two inserts share a transaction so a failure on the user leaves no orphan
+// team behind - which would otherwise be invisible, since nothing else in the
+// system lists empty teams.
+func (s *Storage) CreateTeamWithUser(ctx context.Context, team *Team, u *User) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin signup transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now()
+	team.CreatedAt, team.UpdatedAt, team.FlagUseStatus = now, now, 1
+
+	// SQL: INSERT INTO teams (name, flag_use_status, created_at, updated_at) VALUES (...) RETURNING id
+	if err := tx.QueryRowContext(ctx,
+		`INSERT INTO teams (name, flag_use_status, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4) RETURNING id`,
+		team.Name, team.FlagUseStatus, team.CreatedAt, team.UpdatedAt,
+	).Scan(&team.ID); err != nil {
+		return fmt.Errorf("failed to create team: %w", err)
+	}
+
+	u.TeamID = team.ID
+	u.CreatedAt, u.UpdatedAt, u.FlagUseStatus, u.IsActive = now, now, 1, true
+
+	// SQL: INSERT INTO users (username, username_bidx, email, password, team_id, role, ...) VALUES (...) RETURNING id
+	if err := tx.QueryRowContext(ctx,
+		`INSERT INTO users (username, username_bidx, email, password, team_id, role,
+		                    is_active, flag_use_status, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+		u.Username, u.UsernameBidx, u.Email, u.Password, u.TeamID, u.Role,
+		u.IsActive, u.FlagUseStatus, u.CreatedAt, u.UpdatedAt,
+	).Scan(&u.ID); err != nil {
+		return fmt.Errorf("failed to create first team user: %w", err)
+	}
+
+	return tx.Commit()
 }

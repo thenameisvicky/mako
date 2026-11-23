@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/cache"
-	"github.com/thenameisvicky/tokenly-gateway/internal/requestctx"
-	"github.com/thenameisvicky/tokenly-gateway/internal/storage"
+	"github.com/thenameisvicky/tokenly-mako/internal/cache"
+	"github.com/thenameisvicky/tokenly-mako/internal/requestctx"
+	"github.com/thenameisvicky/tokenly-mako/internal/storage"
 )
 
 type Middleware struct {
@@ -37,14 +37,14 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		// Protect all routes with prefix /api/v1/*
 		if !strings.HasPrefix(path, "/api/v1/") {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		token := extractToken(r)
+
+		if token == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]string{
@@ -53,9 +53,6 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 			})
 			return
 		}
-
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		token = strings.TrimSpace(token)
 
 		sub, companyID, err := VerifyToken(token, m.jwtSecret)
 		if err != nil {
@@ -108,4 +105,33 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// extractToken pulls the Mako token off a request.
+//
+// X-Mako-Token is the canonical header. Since the proxy no longer swaps
+// credentials, Authorization and x-api-key now carry the caller's own provider
+// key on proxied requests and must not be read as a Mako token there.
+// They are still accepted on non-proxy API calls, where no provider key is in
+// play, so existing clients keep working.
+func extractToken(r *http.Request) string {
+	if t := strings.TrimSpace(r.Header.Get("X-Mako-Token")); t != "" {
+		return strings.TrimSpace(strings.TrimPrefix(t, "Bearer "))
+	}
+
+	if isProxyPath(r.URL.Path) {
+		return ""
+	}
+
+	if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	}
+	return strings.TrimSpace(r.Header.Get("x-api-key"))
+}
+
+// isProxyPath reports whether a path is forwarded upstream, where the
+// Authorization header belongs to the provider rather than to Mako.
+func isProxyPath(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/proxy") ||
+		strings.HasPrefix(path, "/api/v1/messages")
 }

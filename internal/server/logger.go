@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thenameisvicky/tokenly-gateway/internal/requestctx"
-	"github.com/thenameisvicky/tokenly-gateway/internal/telemetry"
+	"github.com/thenameisvicky/tokenly-mako/internal/requestctx"
+	"github.com/thenameisvicky/tokenly-mako/internal/telemetry"
 )
 
 type loggingResponseWriter struct {
@@ -91,8 +91,16 @@ func LoggingMiddleware(tracker *telemetry.LatencyTracker) func(http.Handler) htt
 				}
 			}
 
-			log.Printf("[Request] id=%s method=%s path=%s status=%d duration=%s user_id=%s team_id=%s provider=%s cache=%s",
-				state.RequestID, r.Method, r.URL.Path, lrw.statusCode, duration, userID, teamID, provider, cacheHitStr)
+			model := state.Model
+			if model == "" {
+				model = "none"
+			}
+
+			// Metadata only. Never log the Mako token, the caller's provider key,
+			// any Authorization header, or the request body.
+			log.Printf("[Request] id=%s method=%s path=%s status=%d duration=%s user_id=%s team_id=%s provider=%s model=%s cache=%s tokens_in=%d tokens_out=%d",
+				state.RequestID, r.Method, r.URL.Path, lrw.statusCode, duration, userID, teamID,
+				provider, model, cacheHitStr, state.InputTokens, state.OutputTokens)
 
 			// Clean up and release the request state back to the pool
 			requestctx.ReleaseState(state)
