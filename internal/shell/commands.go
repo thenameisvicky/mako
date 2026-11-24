@@ -35,16 +35,16 @@ func InitRouter() *Router {
 		return nil
 	}))
 
-	r.RegisterCommand("/local-chat-sync", "Upload this machine's Claude Code chats to the proxy",
+	r.RegisterCommand("/push", "Upload this machine's Claude Code chats to the proxy",
 		newAsyncCommand("Syncing local chats", handleLocalChatSync))
 
-	r.RegisterCommand("/local-chat-list", "List chats your team has synced",
+	r.RegisterCommand("/log", "List chats your team has synced",
 		newAsyncCommand("Fetching synced chats", handleLocalChatList))
 
-	r.RegisterCommand("/local-chat-sync-create", "Import every synced chat onto this machine",
+	r.RegisterCommand("/clone", "Import every synced chat onto this machine",
 		newAsyncCommand("Creating local chats", handleLocalChatSyncCreate))
 
-	r.RegisterCommand("/local-chat-import", "Import one synced chat by session id",
+	r.RegisterCommand("/pull", "Import one synced chat by session id",
 		newAsyncCommand("Importing chat", handleLocalChatImport))
 
 	r.RegisterCommand("/exit", "Exit the interactive shell", CommandHandlerFunc(func(args []string) error {

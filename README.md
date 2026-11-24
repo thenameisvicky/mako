@@ -33,11 +33,11 @@ sequenceDiagram
     PX-->>Mako: Mako token
     Mako->>KC: store token
 
-    Dev->>Mako: /local-chat-sync
+    Dev->>Mako: /push
     Mako->>PX: upload ~/.claude/projects/**/*.jsonl
     PX->>DB: store, encrypted with AES-256-GCM
 
-    Dev->>Mako: /local-chat-import <id> (on another machine)
+    Dev->>Mako: /pull <id> (on another machine)
     PX-->>Mako: decrypted transcript
     Mako->>Mako: write it where `claude --resume` finds it
 ```
@@ -70,7 +70,7 @@ Run the server, then the CLI in another terminal:
 
 ```bash
 /login              # sign in, or create an account and team
-/local-chat-sync    # share this machine's Claude Code sessions
+/push    # share this machine's Claude Code sessions
 ```
 
 ## Commands
@@ -79,10 +79,10 @@ Run the server, then the CLI in another terminal:
 | :--- | :--- |
 | `/login` | Sign in and store the Mako token in the system keychain. |
 | `/logout` | Clear stored credentials from the keychain. |
-| `/local-chat-sync` | Upload this machine's Claude Code transcripts. |
-| `/local-chat-list` | List transcripts your team has synced. |
-| `/local-chat-import` | Import one synced transcript onto this machine. |
-| `/local-chat-sync-create` | Import every synced transcript onto this machine. |
+| `/push` | Upload this machine's Claude Code transcripts. |
+| `/log` | List transcripts your team has synced. |
+| `/pull` | Import one synced transcript onto this machine. |
+| `/clone` | Import every synced transcript onto this machine. |
 | `/status` | Show sign-in state and the server URL. |
 | `/help` | List all slash commands. |
 | `/clear` | Clear the terminal (alias: `/clean`). |
@@ -100,15 +100,15 @@ machine.
 
 ```bash
 # on your laptop
-/local-chat-sync
+/push
   ✔ Synced 11 of 11 sessions to the proxy.
 
 # on your desktop
-/local-chat-list
+/log
     7db03f76  Fixing the deployment state transfer
       /home/vicky/Documents/work · 48 messages · 2026-09-01 15:04 · you
 
-/local-chat-import 7db03f76
+/pull 7db03f76
   ✔ Imported Fixing the deployment state transfer
   Open it with claude --resume
 ```

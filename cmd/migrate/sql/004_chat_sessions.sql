@@ -1,5 +1,5 @@
 -- 004_chat_sessions.sql
--- Storage for /local-chat-sync: Claude Code transcripts uploaded from a machine,
+-- Storage for /push: Claude Code transcripts uploaded from a machine,
 -- encrypted at rest with AES-256-GCM and shared across a team.
 --
 -- transcript holds the full .jsonl file as a single EncryptField value. It is

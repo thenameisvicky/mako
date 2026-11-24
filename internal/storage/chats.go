@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// ChatSession is one Claude Code transcript uploaded by /local-chat-sync.
+// ChatSession is one Claude Code transcript uploaded by /push.
 //
 // ProjectPath and Transcript hold AES-256-GCM ciphertext; the proxy decrypts
 // them only when handing a session back to an authorised team member.
@@ -29,7 +29,7 @@ type ChatSession struct {
 }
 
 // UpsertChatSession inserts a transcript, or replaces it if this user has already
-// synced that session. Re-running /local-chat-sync is therefore idempotent.
+// synced that session. Re-running /push is therefore idempotent.
 func (s *Storage) UpsertChatSession(ctx context.Context, c *ChatSession) error {
 	now := time.Now()
 	c.SyncedAt = now

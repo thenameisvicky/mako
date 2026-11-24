@@ -131,9 +131,8 @@ func (s *Storage) GetTeamForUser(ctx context.Context, userID string) (*Team, err
 // DeleteRowData performs soft-deletion by setting flag_use_status to 0
 func (s *Storage) DeleteRowData(ctx context.Context, tableName string, id string) error {
 	validTables := map[string]bool{
-		"users":       true,
-		"teams":       true,
-		"credentials": true,
+		"users": true,
+		"teams": true,
 	}
 	if !validTables[tableName] {
 		return fmt.Errorf("invalid table name for soft deletion: %s", tableName)

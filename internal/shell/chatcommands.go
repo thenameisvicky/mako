@@ -52,7 +52,7 @@ func handleLocalChatSync(args []string) error {
 	if skipped > 0 {
 		fmt.Printf("  %s%d local file(s) could not be read and were skipped.%s\n", colorDim, skipped, colorReset)
 	}
-	fmt.Printf("  %sRun %s/local-chat-list%s on another machine to import them.%s\n\n",
+	fmt.Printf("  %sRun %s/log%s on another machine to import them.%s\n\n",
 		colorDim, colorGreen, colorDim, colorReset)
 	return nil
 }
@@ -69,7 +69,7 @@ func handleLocalChatList(args []string) error {
 		return err
 	}
 	if len(sessions) == 0 {
-		fmt.Printf("\n  %sNo synced sessions yet. Run %s/local-chat-sync%s to upload this machine's chats.%s\n\n",
+		fmt.Printf("\n  %sNo synced sessions yet. Run %s/push%s to upload this machine's chats.%s\n\n",
 			colorDim, colorGreen, colorDim, colorReset)
 		return nil
 	}
@@ -88,7 +88,7 @@ func handleLocalChatList(args []string) error {
 		fmt.Printf("      %s%s · %d messages · %s · %s%s\n",
 			colorDim, s.ProjectPath, s.MessageCount, s.SyncedAt.Format("2006-01-02 15:04"), owner, colorReset)
 	}
-	fmt.Printf("\n  %sImport one with %s/local-chat-import <session-id>%s\n\n", colorDim, colorGreen, colorReset)
+	fmt.Printf("\n  %sImport one with %s/pull <session-id>%s\n\n", colorDim, colorGreen, colorReset)
 	return nil
 }
 
@@ -96,7 +96,7 @@ func handleLocalChatList(args []string) error {
 // Claude Code directory, so it shows up in `claude --resume`.
 func handleLocalChatImport(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: /local-chat-import <session-id>  (run /local-chat-list to see ids)")
+		return fmt.Errorf("usage: /pull <session-id>  (run /log to see ids)")
 	}
 
 	client, err := chatsync.NewClient(clientconfig.ProxyURL())
@@ -126,7 +126,7 @@ func handleLocalChatImport(args []string) error {
 }
 
 // resolveSessionID accepts either a full session id or the short prefix shown by
-// /local-chat-list, and fails clearly when a prefix is ambiguous.
+// /log, and fails clearly when a prefix is ambiguous.
 func resolveSessionID(client *chatsync.Client, input string) (string, error) {
 	sessions, err := client.List()
 	if err != nil {
@@ -175,7 +175,7 @@ func handleLocalChatSyncCreate(args []string) error {
 		return err
 	}
 	if len(sessions) == 0 {
-		fmt.Printf("\n  %sNothing synced yet. Run %s/local-chat-sync%s on the other machine first.%s\n\n",
+		fmt.Printf("\n  %sNothing synced yet. Run %s/push%s on the other machine first.%s\n\n",
 			colorDim, colorGreen, colorDim, colorReset)
 		return nil
 	}

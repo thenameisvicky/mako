@@ -45,7 +45,7 @@ function parseTranscript(raw: string): Turn[] {
 }
 
 const repoName = (path: string) => path.split("/").filter(Boolean).pop() ?? path;
-const importCommand = (id: string) => `/local-chat-import ${id.slice(0, 8)}`;
+const importCommand = (id: string) => `/pull ${id.slice(0, 8)}`;
 
 function Sessions() {
   const { data: sessions, error, loading } = useLoad(api.chats);
@@ -170,11 +170,11 @@ function Quickstart() {
         </li>
         <li>
           <span>Upload this machine&apos;s Claude Code sessions</span>
-          <code className="cmd">/local-chat-sync</code>
+          <code className="cmd">/push</code>
         </li>
         <li>
           <span>On another machine, import one and resume it</span>
-          <code className="cmd">/local-chat-import &lt;id&gt; → claude --resume</code>
+          <code className="cmd">/pull &lt;id&gt; → claude --resume</code>
         </li>
       </ol>
     </Card>
